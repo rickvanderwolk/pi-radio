@@ -1,3 +1,5 @@
+# use `bash start_radio.sh` to start instead of calling this script directly
+
 import time
 import os
 import signal
@@ -59,10 +61,14 @@ def stop_stream():
         print("Stream gestopt.")
 
 def adjust_volume(direction):
+    amixer_path = '/usr/bin/amixer'
+    subprocess.call([amixer_path, 'set', 'Master', 'unmute'])
+
     if direction == "up":
-        command = ['amixer', 'set', 'Master', '5%+']
+        command = [amixer_path, 'set', 'Master', '5%+']
     elif direction == "down":
-        command = ['amixer', 'set', 'Master', '5%-']
+        command = [amixer_path, 'set', 'Master', '5%-']
+
     subprocess.call(command)
     print(f"Volume {direction}")
 

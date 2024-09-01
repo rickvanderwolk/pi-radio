@@ -35,14 +35,14 @@ A Python (Raspberry Pi) script to control online radio streaming with a gamepad.
 
 1. `crontab -e`
 2. Choose nano by pressing `1` + `enter`
-3. Add to following line `@reboot sleep 30 && sudo pi-radio/bin/python pi-radio/main.py >> /home/<your-pi-username>/pi-radio/cron.log 2>&1`
+3. Add to following line `@reboot sleep 30 && bash pi-radio/start_radio.sh >> /home/<your-pi-username>/pi-radio/cron.log 2>&1`
 4. Press `ctrl` + `x` and then `y` to save
 5. Reboot `sudo reboot`
 
 <a id="#run-script"></a>
 ## Run script
 
-Run script `sudo pi-radio/bin/python pi-radio/main.py`. You probably need to use `sudo` to run the script as we use the GPIO pins for communication with the LED strip.
+Run script `bash start_radio.sh`.
 
 <a id="#update"></a>
 ## Update
