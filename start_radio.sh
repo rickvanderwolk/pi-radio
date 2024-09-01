@@ -1,3 +1,4 @@
 #!/bin/bash
-source /home/piradio/pi-radio/bin/activate
-python /home/piradio/pi-radio/main.py
+pulseaudio --start
+source /home/<your-pi-username>/pi-radio/bin/activate
+python /home/<your-pi-username>/pi-radio/main.py
