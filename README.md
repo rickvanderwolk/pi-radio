@@ -42,7 +42,7 @@ A Python (Raspberry Pi) script to control online radio streaming with a gamepad.
 <a id="#run-script"></a>
 ## Run script
 
-Run script `bash start_radio.sh`.
+Run script `bash pi-radio/start_radio.sh`.
 
 <a id="#update"></a>
 ## Update
