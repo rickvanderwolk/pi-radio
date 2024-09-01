@@ -24,7 +24,7 @@ A Python (Raspberry Pi) script to control online radio streaming with a gamepad.
 
 ## Install
 
-1. Install Raspberry Pi OS on a SD card. You can easily choose the right image and setup a username / password, Wi-Fi and enable SSH with the [Raspberry Pi OS imager](https://www.raspberrypi.com/software/). I've used the latest recommended image `Raspberry Pi OS (32-bit) - Release date 2024-07-04 - A port of Debian Bookworm with the Raspberry Pi Desktop` in the example below, but I recommend just installing the latest recommended version.
+1. Install Raspberry Pi OS on a SD card. You can easily choose the right image and setup a username / password, Wi-Fi and enable SSH with the [Raspberry Pi OS imager](https://www.raspberrypi.com/software/). I've used the latest recommended image `Raspberry Pi OS (64-bit) - Release date 2024-07-04 - A port of Debian Bookworm with the Raspberry Pi Desktop` in the example below, but I recommend just installing the latest recommended version.
 2. Boot the Pi (might take a while depending on which Pi you're using)
 3. Connect via SSH `ssh <your-pi-username>@<your-pi-ip>`
 4. Clone repository `git clone https://github.com/rickvanderwolk/pi-radio.git`
