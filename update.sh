@@ -2,10 +2,10 @@
 
 echo "Starting update..."
 
-cd ~/led-sort
+cd ~/pi-radio
 
 if [ $? -ne 0 ]; then
-    echo "Failed to change directory to ~/led-sort. Exiting..."
+    echo "Failed to change directory to ~/pi-radio. Exiting..."
     exit 1
 fi
 

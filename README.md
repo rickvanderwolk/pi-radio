@@ -51,5 +51,4 @@ Run script `bash pi-radio/start_radio.sh`.
 If you're using an old version of this project and the repository has been updated since, use instructions below to update.
 
 1. Update project `bash pi-radio/update.sh`
-2. Check if new config options are available `diff -y pi-radio/.env.example pi-radio/.env`. Add new config options if needed with `nano pi-radio/.env`.  Press `ctrl` + `x` and then `y` to save.
-3. Restart script or Pi
+2. Restart script or Pi
