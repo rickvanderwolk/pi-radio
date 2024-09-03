@@ -45,7 +45,7 @@ radio_stations = {
 stations = list(radio_stations.keys())
 current_station_index = 0
 current_process = None
-config_file = os.path.join(os.path.dirname(__file__), 'config.json')
+config_file = 'config.json'
 select_pressed_time = 0
 
 def load_config():
@@ -61,6 +61,9 @@ def save_config(config):
 
 def start_stream(station):
     global current_process
+    if station not in radio_stations:
+        print(f"Station '{station}' is not valid. Starting default station.")
+        station = stations[0]
     stop_stream()
     stream_url = radio_stations[station]
     command = ['ffplay', '-autoexit', '-nodisp', '-rtbufsize', '1500M', '-max_delay', '5000000', stream_url]
@@ -104,7 +107,7 @@ def process_event(event):
                 print(f"Station {stations[current_station_index]} gekoppeld aan {button}.")
             else:
                 station_to_play = config['button_A'] if event.code == 'BTN_TRIGGER' else config['button_B']
-                if station_to_play is None:
+                if station_to_play is None or station_to_play not in radio_stations:
                     current_station_index = 0
                     start_stream(stations[current_station_index])
                 else:
