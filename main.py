@@ -38,6 +38,7 @@ radio_stations = {
     'slam_housuh_in_de_pauzuh': 'https://stream.slam.nl/web16_mp3',
     'slam_nonstop': 'https://stream.slam.nl/web10_mp3',
     'cadena_digital': 'http://185.23.192.118:8006/;stream.mp3',
+    'dnbradio': 'https://azrelay.drmnbss.org/listen/dnbradio/radio.mp3',
 }
 
 stations = list(radio_stations.keys())
