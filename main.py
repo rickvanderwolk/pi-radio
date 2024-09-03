@@ -45,7 +45,7 @@ radio_stations = {
 stations = list(radio_stations.keys())
 current_station_index = 0
 current_process = None
-config_file = 'config.json'
+config_file = os.path.join(os.path.dirname(__file__), 'config.json')
 select_pressed_time = 0
 
 def load_config():
@@ -100,7 +100,7 @@ def process_event(event):
             print("Select button pressed, waiting for A or B...")
             last_event_time['BTN_BASE3'] = current_time
         elif event.code in ['BTN_TRIGGER', 'BTN_THUMB'] and event.state == 1 and current_time - last_event_time[event.code] > DEBOUNCE_TIME:
-            if select_pressed_time > 0 and current_time - select_pressed_time < 1:
+            if select_pressed_time > 0 and current_time - select_pressed_time < 10:
                 button = 'button_A' if event.code == 'BTN_TRIGGER' else 'button_B'
                 config[button] = stations[current_station_index]
                 save_config(config)
@@ -121,24 +121,23 @@ def process_event(event):
                 stop_stream()
             last_event_time['BTN_BASE4'] = current_time
             select_pressed_time = 0
-        elif event.code not in ['BTN_TRIGGER', 'BTN_THUMB', 'BTN_BASE3'] and event.state == 1:
-            if event.code == 'ABS_X':
-                if event.state < 128 and current_time - last_event_time['ABS_X'] > DEBOUNCE_TIME:
+
+    if event.ev_type == 'Absolute':
+        if event.code == 'ABS_X':
+            if current_time - last_event_time['ABS_X'] > DEBOUNCE_TIME:
+                if event.state < 128:
                     current_station_index = (current_station_index - 1) % len(stations)
-                    start_stream(stations[current_station_index])
-                    last_event_time['ABS_X'] = current_time
-                elif event.state > 128 and current_time - last_event_time['ABS_X'] > DEBOUNCE_TIME:
+                elif event.state > 128:
                     current_station_index = (current_station_index + 1) % len(stations)
-                    start_stream(stations[current_station_index])
-                    last_event_time['ABS_X'] = current_time
-            elif event.code == 'ABS_Y':
-                if event.state < 128 and current_time - last_event_time['ABS_Y'] > DEBOUNCE_TIME:
+                start_stream(stations[current_station_index])
+                last_event_time['ABS_X'] = current_time
+        elif event.code == 'ABS_Y':
+            if current_time - last_event_time['ABS_Y'] > DEBOUNCE_TIME:
+                if event.state < 128:
                     adjust_volume("up")
-                    last_event_time['ABS_Y'] = current_time
-                elif event.state > 128 and current_time - last_event_time['ABS_Y'] > DEBOUNCE_TIME:
+                elif event.state > 128:
                     adjust_volume("down")
-                    last_event_time['ABS_Y'] = current_time
-            select_pressed_time = 0
+                last_event_time['ABS_Y'] = current_time
 
 config = load_config()
 start_stream(config.get('button_A', stations[0]))
