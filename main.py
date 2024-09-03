@@ -78,12 +78,12 @@ def process_event(event):
     current_time = time.time()
 
     if event.ev_type == 'Key':
-        if event.code == 'BTN_BASE3' and event.state == 1 and current_time - last_event_time['BTN_BASE3'] > DEBOUNCE_TIME:
-            stop_stream()
-            last_event_time['BTN_BASE3'] = current_time
-        elif event.code == 'BTN_BASE4' and event.state == 1 and current_time - last_event_time['BTN_BASE4'] > DEBOUNCE_TIME:
-            start_stream(stations[current_station_index])
-            last_event_time['BTN_BASE4'] = current_time
+        if event.code in ['BTN_BASE3', 'BTN_BASE4'] and event.state == 1 and current_time - last_event_time[event.code] > DEBOUNCE_TIME:
+            if current_process is None:
+                start_stream(stations[current_station_index])
+            else:
+                stop_stream()
+            last_event_time[event.code] = current_time
         elif event.code == 'BTN_TRIGGER' and event.state == 1 and current_time - last_event_time['BTN_TRIGGER'] > DEBOUNCE_TIME:
             current_station_index = 0
             start_stream(stations[current_station_index])
