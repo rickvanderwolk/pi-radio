@@ -4,17 +4,18 @@ import time
 import os
 import signal
 import subprocess
+import json
 from inputs import get_gamepad
 
 DEBOUNCE_TIME = 0.2
 
 last_event_time = {
-    'BTN_BASE3': 0,
-    'BTN_BASE4': 0,
-    'BTN_TRIGGER': 0,
-    'BTN_THUMB': 0,
-    'ABS_X': 0,
-    'ABS_Y': 0
+    'BTN_BASE3': 0,  # Select button
+    'BTN_BASE4': 0,  # Start button
+    'BTN_TRIGGER': 0,  # Button A
+    'BTN_THUMB': 0,  # Button B
+    'ABS_X': 0, # Joystick left / right
+    'ABS_Y': 0 # Joystick up / down
 }
 
 radio_stations = {
@@ -44,6 +45,19 @@ radio_stations = {
 stations = list(radio_stations.keys())
 current_station_index = 0
 current_process = None
+config_file = os.path.join(os.path.dirname(__file__), 'config.json')
+select_pressed_time = 0
+
+def load_config():
+    if os.path.exists(config_file):
+        with open(config_file, 'r') as file:
+            return json.load(file)
+    else:
+        return {'button_A': None, 'button_B': None}
+
+def save_config(config):
+    with open(config_file, 'w') as file:
+        json.dump(config, file)
 
 def start_stream(station):
     global current_process
@@ -74,42 +88,57 @@ def adjust_volume(direction):
     print(f"Volume {direction}")
 
 def process_event(event):
-    global current_station_index
+    global current_station_index, select_pressed_time
     current_time = time.time()
 
     if event.ev_type == 'Key':
-        if event.code in ['BTN_BASE3', 'BTN_BASE4'] and event.state == 1 and current_time - last_event_time[event.code] > DEBOUNCE_TIME:
+        if event.code == 'BTN_BASE3' and event.state == 1 and current_time - last_event_time['BTN_BASE3'] > DEBOUNCE_TIME:
+            select_pressed_time = current_time
+            print("Select button pressed, waiting for A or B...")
+            last_event_time['BTN_BASE3'] = current_time
+        elif event.code in ['BTN_TRIGGER', 'BTN_THUMB'] and event.state == 1 and current_time - last_event_time[event.code] > DEBOUNCE_TIME:
+            if select_pressed_time > 0 and current_time - select_pressed_time < 1:
+                button = 'button_A' if event.code == 'BTN_TRIGGER' else 'button_B'
+                config[button] = stations[current_station_index]
+                save_config(config)
+                print(f"Station {stations[current_station_index]} gekoppeld aan {button}.")
+            else:
+                station_to_play = config['button_A'] if event.code == 'BTN_TRIGGER' else config['button_B']
+                if station_to_play is None:
+                    current_station_index = 0
+                    start_stream(stations[current_station_index])
+                else:
+                    start_stream(station_to_play)
+            last_event_time[event.code] = current_time
+            select_pressed_time = 0
+        elif event.code == 'BTN_BASE4' and event.state == 1 and current_time - last_event_time['BTN_BASE4'] > DEBOUNCE_TIME:
             if current_process is None:
                 start_stream(stations[current_station_index])
             else:
                 stop_stream()
-            last_event_time[event.code] = current_time
-        elif event.code == 'BTN_TRIGGER' and event.state == 1 and current_time - last_event_time['BTN_TRIGGER'] > DEBOUNCE_TIME:
-            current_station_index = 0
-            start_stream(stations[current_station_index])
-            last_event_time['BTN_TRIGGER'] = current_time
-        elif event.code == 'BTN_THUMB' and event.state == 1 and current_time - last_event_time['BTN_THUMB'] > DEBOUNCE_TIME:
-            last_event_time['BTN_THUMB'] = current_time
+            last_event_time['BTN_BASE4'] = current_time
+            select_pressed_time = 0
+        elif event.code not in ['BTN_TRIGGER', 'BTN_THUMB', 'BTN_BASE3'] and event.state == 1:
+            if event.code == 'ABS_X':
+                if event.state < 128 and current_time - last_event_time['ABS_X'] > DEBOUNCE_TIME:
+                    current_station_index = (current_station_index - 1) % len(stations)
+                    start_stream(stations[current_station_index])
+                    last_event_time['ABS_X'] = current_time
+                elif event.state > 128 and current_time - last_event_time['ABS_X'] > DEBOUNCE_TIME:
+                    current_station_index = (current_station_index + 1) % len(stations)
+                    start_stream(stations[current_station_index])
+                    last_event_time['ABS_X'] = current_time
+            elif event.code == 'ABS_Y':
+                if event.state < 128 and current_time - last_event_time['ABS_Y'] > DEBOUNCE_TIME:
+                    adjust_volume("up")
+                    last_event_time['ABS_Y'] = current_time
+                elif event.state > 128 and current_time - last_event_time['ABS_Y'] > DEBOUNCE_TIME:
+                    adjust_volume("down")
+                    last_event_time['ABS_Y'] = current_time
+            select_pressed_time = 0
 
-    if event.ev_type == 'Absolute':
-        if event.code == 'ABS_X':
-            if event.state < 128 and current_time - last_event_time['ABS_X'] > DEBOUNCE_TIME:
-                current_station_index = (current_station_index - 1) % len(stations)
-                start_stream(stations[current_station_index])
-                last_event_time['ABS_X'] = current_time
-            elif event.state > 128 and current_time - last_event_time['ABS_X'] > DEBOUNCE_TIME:
-                current_station_index = (current_station_index + 1) % len(stations)
-                start_stream(stations[current_station_index])
-                last_event_time['ABS_X'] = current_time
-        elif event.code == 'ABS_Y':
-            if event.state < 128 and current_time - last_event_time['ABS_Y'] > DEBOUNCE_TIME:
-                adjust_volume("up")
-                last_event_time['ABS_Y'] = current_time
-            elif event.state > 128 and current_time - last_event_time['ABS_Y'] > DEBOUNCE_TIME:
-                adjust_volume("down")
-                last_event_time['ABS_Y'] = current_time
-
-start_stream(stations[current_station_index])
+config = load_config()
+start_stream(config.get('button_A', stations[0]))
 
 while True:
     events = get_gamepad()
