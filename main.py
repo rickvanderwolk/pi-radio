@@ -112,6 +112,7 @@ def process_event(event):
                     start_stream(stations[current_station_index])
                 else:
                     start_stream(station_to_play)
+                    current_station_index = stations.index(station_to_play)
             last_event_time[event.code] = current_time
             select_pressed_time = 0
         elif event.code == 'BTN_BASE4' and event.state == 1 and current_time - last_event_time['BTN_BASE4'] > DEBOUNCE_TIME:
