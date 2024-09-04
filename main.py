@@ -53,7 +53,7 @@ def load_config():
         with open(config_file, 'r') as file:
             return json.load(file)
     else:
-        return {'button_A': None, 'button_B': None}
+        return {'bookmark_A': None, 'bookmark_B': None}
 
 def save_config(config):
     with open(config_file, 'w') as file:
@@ -101,12 +101,12 @@ def process_event(event):
             last_event_time['BTN_BASE3'] = current_time
         elif event.code in ['BTN_TRIGGER', 'BTN_THUMB'] and event.state == 1 and current_time - last_event_time[event.code] > DEBOUNCE_TIME:
             if select_pressed_time > 0 and current_time - select_pressed_time < 10:
-                button = 'button_A' if event.code == 'BTN_TRIGGER' else 'button_B'
+                button = 'bookmark_A' if event.code == 'BTN_TRIGGER' else 'bookmark_B'
                 config[button] = stations[current_station_index]
                 save_config(config)
                 print(f"Station {stations[current_station_index]} gekoppeld aan {button}.")
             else:
-                station_to_play = config['button_A'] if event.code == 'BTN_TRIGGER' else config['button_B']
+                station_to_play = config['bookmark_A'] if event.code == 'BTN_TRIGGER' else config['bookmark_B']
                 if station_to_play is None or station_to_play not in radio_stations:
                     current_station_index = 0
                     start_stream(stations[current_station_index])
@@ -141,7 +141,7 @@ def process_event(event):
                 last_event_time['ABS_Y'] = current_time
 
 config = load_config()
-start_stream(config.get('button_A', stations[0]))
+start_stream(config.get('bookmark_A', stations[0]))
 
 while True:
     events = get_gamepad()
