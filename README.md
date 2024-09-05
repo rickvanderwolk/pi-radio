@@ -43,7 +43,7 @@ Run script `bash pi-radio/start_radio.sh`.
 
 1. `crontab -e`
 2. Choose nano by pressing `1` + `enter`
-3. Add to following line `@reboot sleep 30 && /bin/bash /home/<your-pi-username>/pi-radio/start_radio.sh >> /home/<your-pi-username>/pi-radio/cron.log 2>&1`
+3. Add to following line `@reboot /bin/bash /home/<your-pi-username>/pi-radio/start_radio.sh >> /home/<your-pi-username>/pi-radio/cron.log 2>&1`
 4. Press `ctrl` + `x` and then `y` to save
 5. Reboot `sudo reboot`
 

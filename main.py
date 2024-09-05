@@ -5,6 +5,7 @@ import subprocess
 import json
 from inputs import get_gamepad
 import pyttsx3
+import requests
 
 DEBOUNCE_TIME = 0.3
 
@@ -45,6 +46,21 @@ current_station_index = 0
 current_process = None
 config_file = os.path.join(os.path.dirname(__file__), 'config.json')
 select_pressed_time = 0
+network_connected = False
+
+def wait_for_network(timeout=30):
+    print("Waiting for network connectivity...")
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            requests.get('https://1.1.1.1', timeout=5)
+            print("Network connectivity established.")
+            return True
+        except requests.ConnectionError:
+            print("Network not available, retrying...")
+            time.sleep(5)
+    print("Network not available after waiting for 30 seconds.")
+    return False
 
 def speak_text(text):
     engine = pyttsx3.init()
@@ -145,6 +161,12 @@ def process_event(event):
 
 config = load_config()
 start_stream(config.get('bookmark_A', stations[0]))
+
+while not network_connected:
+    if wait_for_network():
+        network_connected = True
+    else:
+        print("Trying to reconnect to the network...")
 
 while True:
     events = get_gamepad()
