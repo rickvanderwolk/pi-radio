@@ -16,4 +16,15 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+echo "Running install.sh..."
+
+bash install.sh
+
+if [ $? -ne 0 ]; then
+    echo "Failed to execute install.sh. Exiting..."
+    exit 1
+fi
+
+echo "install.sh executed successfully."
+
 echo "Update complete."
