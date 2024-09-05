@@ -31,7 +31,7 @@ fi
 echo "Virtual environment activated."
 
 echo "Installing necessary libraries..."
-pip install inputs pyttsx3 requets
+pip install inputs pyttsx3
 
 if [ $? -ne 0 ]; then
     echo "Failed to install necessary libraries. Exiting..."
