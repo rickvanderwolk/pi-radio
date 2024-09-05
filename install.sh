@@ -31,10 +31,16 @@ fi
 echo "Virtual environment activated."
 
 echo "Installing necessary libraries..."
-pip install inputs
+pip install inputs pyttsx3
 
 if [ $? -ne 0 ]; then
     echo "Failed to install necessary libraries. Exiting..."
+    exit 1
+fi
+
+sudo apt install espeak
+if [ $? -ne 0 ]; then
+    echo "Failed to install necessary libraries (2). Exiting..."
     exit 1
 fi
 
