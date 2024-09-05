@@ -9,12 +9,12 @@ import pyttsx3
 DEBOUNCE_TIME = 0.3
 
 last_event_time = {
-    'BTN_BASE3': 0,  # Select button
-    'BTN_BASE4': 0,  # Start button
-    'BTN_TRIGGER': 0,  # Button A
+    'BTN_BASE3': 0, # Select button
+    'BTN_BASE4': 0, # Start button
+    'BTN_TRIGGER': 0, # Button A
     'BTN_THUMB': 0,  # Button B
-    'ABS_X': 0,  # Joystick left / right
-    'ABS_Y': 0   # Joystick up / down
+    'ABS_X': 0, # Joystick left / right
+    'ABS_Y': 0  # Joystick up / down
 }
 
 radio_stations = {
