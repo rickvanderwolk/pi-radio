@@ -1,6 +1,5 @@
 import time
 import os
-import signal
 import subprocess
 import json
 from inputs import get_gamepad
@@ -88,7 +87,7 @@ def start_stream(station):
     stream_url = radio_stations[station]
     command = ['ffplay', '-autoexit', '-nodisp', '-rtbufsize', '1500M', '-max_delay', '5000000', stream_url]
     current_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    print(f"Streaming audio van {station}... Druk op Ctrl+C om te stoppen.")
+    print(f"Streaming audio from {station}... Press Ctrl+C to stop.")
 
 def stop_stream():
     global current_process
@@ -96,7 +95,7 @@ def stop_stream():
         current_process.terminate()
         current_process.wait()
         current_process = None
-        print("Stream gestopt.")
+        print("Stream stopped.")
 
 def adjust_volume(direction):
     amixer_path = '/usr/bin/amixer'
@@ -117,14 +116,16 @@ def process_event(event):
     if event.ev_type == 'Key' and event.state == 1 and current_time - last_event_time.get(event.code, 0) > DEBOUNCE_TIME:
         if event.code == 'BTN_BASE3':
             select_pressed_time = current_time
-            print("Select button pressed, waiting for A or B...")
+            speak_text("Press A or B to assign this station.")
             last_event_time['BTN_BASE3'] = current_time
+
         elif event.code in ['BTN_TRIGGER', 'BTN_THUMB']:
             if select_pressed_time > 0 and current_time - select_pressed_time < 10:
                 button = 'bookmark_A' if event.code == 'BTN_TRIGGER' else 'bookmark_B'
                 config[button] = stations[current_station_index]
                 save_config(config)
-                print(f"Station {stations[current_station_index]} gekoppeld aan {button}.")
+                speak_text(f"Station {stations[current_station_index]} has been saved under {button}.")
+                print(f"Station {stations[current_station_index]} assigned to {button}.")
             else:
                 station_to_play = config['bookmark_A'] if event.code == 'BTN_TRIGGER' else config['bookmark_B']
                 if station_to_play is None or station_to_play not in radio_stations:
@@ -135,6 +136,7 @@ def process_event(event):
                     current_station_index = stations.index(station_to_play)
             last_event_time[event.code] = current_time
             select_pressed_time = 0
+
         elif event.code == 'BTN_BASE4':
             if current_process is None:
                 start_stream(stations[current_station_index])
