@@ -62,9 +62,11 @@ def wait_for_network(timeout=30):
     return False
 
 def speak_text(text):
+    stop_stream()
     engine = pyttsx3.init()
     engine.say(text)
     engine.runAndWait()
+    start_stream(stations[current_station_index], announce_stream=False)
 
 def load_config():
     if os.path.exists(config_file):
@@ -77,13 +79,14 @@ def save_config(config):
     with open(config_file, 'w') as file:
         json.dump(config, file)
 
-def start_stream(station):
+def start_stream(station, announce_stream=True):
     global current_process
     if station not in radio_stations:
         print(f"Station '{station}' is not valid. Starting default station.")
         station = stations[0]
     stop_stream()
-    speak_text(f"Starting stream of {station}")
+    if announce_stream:
+        speak_text(f"Starting stream of {station}")
     stream_url = radio_stations[station]
     command = ['ffplay', '-autoexit', '-nodisp', '-rtbufsize', '1500M', '-max_delay', '5000000', stream_url]
     current_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -126,6 +129,7 @@ def process_event(event):
                 save_config(config)
                 speak_text(f"Station {stations[current_station_index]} has been saved under {button}.")
                 print(f"Station {stations[current_station_index]} assigned to {button}.")
+                start_stream(stations[current_station_index], announce_stream=False)
             else:
                 station_to_play = config['bookmark_A'] if event.code == 'BTN_TRIGGER' else config['bookmark_B']
                 if station_to_play is None or station_to_play not in radio_stations:
