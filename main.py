@@ -1,5 +1,6 @@
 import time
 import os
+import signal
 import subprocess
 import json
 from inputs import get_gamepad
@@ -62,11 +63,9 @@ def wait_for_network(timeout=30):
     return False
 
 def speak_text(text):
-    stop_stream()
     engine = pyttsx3.init()
     engine.say(text)
     engine.runAndWait()
-    start_stream(stations[current_station_index], announce_stream=False)
 
 def load_config():
     if os.path.exists(config_file):
@@ -79,18 +78,17 @@ def save_config(config):
     with open(config_file, 'w') as file:
         json.dump(config, file)
 
-def start_stream(station, announce_stream=True):
+def start_stream(station):
     global current_process
     if station not in radio_stations:
         print(f"Station '{station}' is not valid. Starting default station.")
         station = stations[0]
     stop_stream()
-    if announce_stream:
-        speak_text(f"Starting stream of {station}")
+    speak_text(f"Starting stream of {station}")
     stream_url = radio_stations[station]
     command = ['ffplay', '-autoexit', '-nodisp', '-rtbufsize', '1500M', '-max_delay', '5000000', stream_url]
     current_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    print(f"Streaming audio from {station}... Press Ctrl+C to stop.")
+    print(f"Streaming audio van {station}... Druk op Ctrl+C om te stoppen.")
 
 def stop_stream():
     global current_process
@@ -98,7 +96,7 @@ def stop_stream():
         current_process.terminate()
         current_process.wait()
         current_process = None
-        print("Stream stopped.")
+        print("Stream gestopt.")
 
 def adjust_volume(direction):
     amixer_path = '/usr/bin/amixer'
@@ -119,17 +117,14 @@ def process_event(event):
     if event.ev_type == 'Key' and event.state == 1 and current_time - last_event_time.get(event.code, 0) > DEBOUNCE_TIME:
         if event.code == 'BTN_BASE3':
             select_pressed_time = current_time
-            speak_text("Press A or B to assign this station.")
+            print("Select button pressed, waiting for A or B...")
             last_event_time['BTN_BASE3'] = current_time
-
         elif event.code in ['BTN_TRIGGER', 'BTN_THUMB']:
             if select_pressed_time > 0 and current_time - select_pressed_time < 10:
                 button = 'bookmark_A' if event.code == 'BTN_TRIGGER' else 'bookmark_B'
                 config[button] = stations[current_station_index]
                 save_config(config)
-                speak_text(f"Station {stations[current_station_index]} has been saved under {button}.")
-                print(f"Station {stations[current_station_index]} assigned to {button}.")
-                start_stream(stations[current_station_index], announce_stream=False)
+                print(f"Station {stations[current_station_index]} gekoppeld aan {button}.")
             else:
                 station_to_play = config['bookmark_A'] if event.code == 'BTN_TRIGGER' else config['bookmark_B']
                 if station_to_play is None or station_to_play not in radio_stations:
@@ -140,7 +135,6 @@ def process_event(event):
                     current_station_index = stations.index(station_to_play)
             last_event_time[event.code] = current_time
             select_pressed_time = 0
-
         elif event.code == 'BTN_BASE4':
             if current_process is None:
                 start_stream(stations[current_station_index])
