@@ -40,6 +40,7 @@ radio_stations = {
     'cadena_digital': 'http://185.23.192.118:8006/;stream.mp3',
     'dnbradio': 'https://azrelay.drmnbss.org/listen/dnbradio/radio.mp3',
     '3fm': 'http://icecast.omroep.nl/3fm-bb-mp3',
+    'theradio.cc': 'http://mp3.theradio.cc/',
 }
 
 stations = list(radio_stations.keys())
