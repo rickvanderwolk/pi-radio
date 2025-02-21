@@ -41,6 +41,8 @@ radio_stations = {
     'dnbradio': 'https://azrelay.drmnbss.org/listen/dnbradio/radio.mp3',
     '3fm': 'http://icecast.omroep.nl/3fm-bb-mp3',
     'theradio.cc': 'http://mp3.theradio.cc/',
+    'public_domain_radio_classical': 'http://relay.publicdomainradio.org/classical.mp3',
+    'public_domain_radio_jazz': 'http://relay.publicdomainradio.org/jazz_swing.mp3',
 }
 
 stations = list(radio_stations.keys())
