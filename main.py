@@ -43,6 +43,16 @@ radio_stations = {
     'theradio.cc': 'http://mp3.theradio.cc/',
     'public_domain_radio_classical': 'http://relay.publicdomainradio.org/classical.mp3',
     'public_domain_radio_jazz': 'http://relay.publicdomainradio.org/jazz_swing.mp3',
+    'somafm_groove_salad': 'https://ice2.somafm.com/groovesalad-128-mp3',
+    'somafm_drone_zone': 'https://ice2.somafm.com/dronezone-128-mp3',
+    'somafm_deep_space_one': 'https://ice2.somafm.com/deepspaceone-128-mp3',
+    'somafm_synphaera_radio': 'https://ice2.somafm.com/synphaera-128-mp3',
+    'somafm_bossa_beyond': 'https://ice2.somafm.com/bossa-128-mp3',
+    'somafm_dubstep_beyond': 'https://ice2.somafm.com/dubstep-128-mp3',
+    'somafm_beat_blender': 'https://ice2.somafm.com/beatblender-128-mp3',
+    'somafm_the_trip': 'https://ice2.somafm.com/thetrip-128-mp3',
+    'somafm_sonic_universe': 'https://ice2.somafm.com/sonicuniverse-128-mp3',
+    'somafm_def_con_radio': 'https://ice2.somafm.com/defcon-128-mp3',
 }
 
 stations = list(radio_stations.keys())
