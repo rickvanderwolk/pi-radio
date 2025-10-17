@@ -1,49 +1,119 @@
 #!/bin/bash
+set -e
 
-echo "Starting installation..."
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
-echo "Creating and activating a virtual environment (since pip cannot be used directly in newer versions of Raspberry Pi OS)..."
-sudo apt install python3-venv -y
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 
-if [ $? -ne 0 ]; then
-    echo "Failed to install python3-venv. Exiting..."
+echo -e "${GREEN}Pi-Radio Installation${NC}"
+echo "================================"
+echo ""
+
+# Detect username automatically
+CURRENT_USER="${USER}"
+echo -e "Installing for user: ${GREEN}${CURRENT_USER}${NC}"
+echo -e "Project directory: ${GREEN}${PROJECT_DIR}${NC}"
+echo ""
+
+# Check if running on Raspberry Pi
+if ! grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null && ! grep -q "BCM" /proc/cpuinfo 2>/dev/null; then
+    echo -e "${YELLOW}Warning: This doesn't appear to be a Raspberry Pi. Continuing anyway...${NC}"
+fi
+
+# Install system dependencies
+echo -e "${GREEN}[1/6]${NC} Installing system dependencies..."
+sudo apt update
+sudo apt install -y python3-venv espeak pulseaudio ffmpeg
+
+if ! command -v ffplay &> /dev/null; then
+    echo -e "${RED}Error: ffplay not installed. Please install ffmpeg.${NC}"
     exit 1
 fi
 
-echo "Creating virtual environment (might take a while)..."
-python3 -m venv pi-radio
+# Create virtual environment in project directory
+echo -e "${GREEN}[2/6]${NC} Creating virtual environment..."
+if [ -d "${PROJECT_DIR}/.venv" ]; then
+    echo -e "${YELLOW}Virtual environment already exists. Skipping creation.${NC}"
+else
+    python3 -m venv "${PROJECT_DIR}/.venv"
+    echo "Virtual environment created at ${PROJECT_DIR}/.venv"
+fi
 
-if [ $? -ne 0 ]; then
-    echo "Failed to create virtual environment. Exiting..."
+# Activate virtual environment
+echo -e "${GREEN}[3/6]${NC} Activating virtual environment..."
+source "${PROJECT_DIR}/.venv/bin/activate"
+
+# Install Python dependencies from requirements.txt
+echo -e "${GREEN}[4/6]${NC} Installing Python dependencies..."
+if [ -f "${PROJECT_DIR}/requirements.txt" ]; then
+    pip install --upgrade pip
+    pip install -r "${PROJECT_DIR}/requirements.txt"
+else
+    echo -e "${RED}Error: requirements.txt not found!${NC}"
     exit 1
 fi
 
-echo "Virtual environment 'pi-radio' created."
+# Make start script executable
+echo -e "${GREEN}[5/6]${NC} Setting up start script..."
+chmod +x "${PROJECT_DIR}/start_radio.sh"
 
-echo "Activating virtual environment..."
-source pi-radio/bin/activate
+# Ask about systemd service installation
+echo ""
+echo -e "${GREEN}[6/6]${NC} Systemd service setup"
+echo "Would you like to install Pi-Radio as a systemd service?"
+echo "This will make it start automatically on boot."
+read -p "Install service? (y/n): " -n 1 -r
+echo ""
 
-if [ $? -ne 0 ]; then
-    echo "Failed to activate virtual environment. Exiting..."
-    exit 1
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "Installing systemd service..."
+
+    # Create service file from template
+    SERVICE_FILE="/tmp/pi-radio.service"
+    sed "s|%USER%|${CURRENT_USER}|g" "${PROJECT_DIR}/pi-radio.service" | \
+    sed "s|%PROJECT_DIR%|${PROJECT_DIR}|g" > "${SERVICE_FILE}"
+
+    # Install service
+    sudo cp "${SERVICE_FILE}" /etc/systemd/system/pi-radio.service
+    sudo systemctl daemon-reload
+    sudo systemctl enable pi-radio.service
+
+    rm "${SERVICE_FILE}"
+
+    echo -e "${GREEN}Service installed successfully!${NC}"
+    echo ""
+    echo "Service commands:"
+    echo "  Start:   sudo systemctl start pi-radio"
+    echo "  Stop:    sudo systemctl stop pi-radio"
+    echo "  Status:  sudo systemctl status pi-radio"
+    echo "  Logs:    journalctl -u pi-radio -f"
+    echo ""
+
+    read -p "Start service now? (y/n): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        sudo systemctl start pi-radio
+        echo -e "${GREEN}Service started!${NC}"
+    fi
+else
+    echo "Skipping service installation."
+    echo "You can run manually with: ${PROJECT_DIR}/start_radio.sh"
 fi
 
-echo "Virtual environment activated."
-
-echo "Installing necessary libraries..."
-pip install inputs pyttsx3 requests
-
-if [ $? -ne 0 ]; then
-    echo "Failed to install necessary libraries. Exiting..."
-    exit 1
+echo ""
+echo -e "${GREEN}Installation complete!${NC}"
+echo ""
+echo "Next steps:"
+echo "  1. Connect your gamepad"
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "  2. Run: ${PROJECT_DIR}/start_radio.sh"
+else
+    echo "  2. Check status: sudo systemctl status pi-radio"
 fi
-
-sudo apt install espeak
-if [ $? -ne 0 ]; then
-    echo "Failed to install necessary libraries (2). Exiting..."
-    exit 1
-fi
-
-echo "Necessary libraries installed."
-
-echo "Installation complete."
+echo ""

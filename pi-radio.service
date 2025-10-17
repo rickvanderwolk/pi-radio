@@ -1,0 +1,18 @@
+[Unit]
+Description=Pi Radio - Internet Radio Controller
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%USER%
+WorkingDirectory=%PROJECT_DIR%
+ExecStartPre=/bin/sleep 5
+ExecStart=%PROJECT_DIR%/start_radio.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

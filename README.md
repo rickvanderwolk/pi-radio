@@ -22,35 +22,76 @@ A Python (Raspberry Pi) script to control online radio streaming with a gamepad.
 <a id="#getting-started"></a>
 ## Getting started
 
-## Install
+## Fresh Installation
 
 1. Install Raspberry Pi OS on a SD card. You can easily choose the right image and setup a username / password, Wi-Fi and enable SSH with the [Raspberry Pi OS imager](https://www.raspberrypi.com/software/). I've used the latest recommended image `Raspberry Pi OS (64-bit) - Release date 2024-07-04 - A port of Debian Bookworm with the Raspberry Pi Desktop` in the example below, but I recommend just installing the latest recommended version.
 2. Boot the Pi (might take a while depending on which Pi you're using)
 3. Connect via SSH `ssh <your-pi-username>@<your-pi-ip>`
 4. Clone repository `git clone https://github.com/rickvanderwolk/pi-radio.git`
-5. Run install script `bash pi-radio/install.sh` (might take a while)
-6. Replace `<your-pi-username>` with your actual Pi username in radio startup script with `nano pi-radio/start_radio.sh`. Press `ctrl` + `x` and then `y` to save
-7. .[Run script](#run-script)
+5. Run install script `cd pi-radio && ./install.sh`
+   - The installer will automatically detect your username and project directory
+   - You'll be prompted whether to install as a systemd service (recommended)
+   - If you choose yes, Pi-Radio will start automatically on boot
+6. Done! If you installed the service, it's already running. Otherwise, see [Run script](#run-script) below.
+
+The installation script will:
+- Install all system dependencies (Python, ffmpeg, espeak, pulseaudio)
+- Create a virtual environment in the project directory
+- Install Python dependencies from requirements.txt
+- Optionally set up a systemd service for automatic startup
 
 <a id="#run-script"></a>
 ## Run script
 
-### Run command
+### With systemd service (recommended)
 
-Run script `bash pi-radio/start_radio.sh`.
+If you installed the systemd service during installation:
 
-### Run on boot (optional)
+```bash
+# Check status
+sudo systemctl status pi-radio
 
-1. `crontab -e`
-2. Choose nano by pressing `1` + `enter`
-3. Add to following line `@reboot /bin/bash /home/<your-pi-username>/pi-radio/start_radio.sh >> /home/<your-pi-username>/pi-radio/cron.log 2>&1`
-4. Press `ctrl` + `x` and then `y` to save
-5. Reboot `sudo reboot`
+# Start manually
+sudo systemctl start pi-radio
+
+# Stop
+sudo systemctl stop pi-radio
+
+# Restart
+sudo systemctl restart pi-radio
+
+# View logs
+journalctl -u pi-radio -f
+```
+
+### Manual run
+
+If you prefer to run manually without the service:
+
+```bash
+cd pi-radio
+./start_radio.sh
+```
 
 <a id="#update"></a>
-## Update
+## Migrating from Old Installation
 
-If you're using an old version of this project and the repository has been updated since, use instructions below to update.
+If you're using an old version of this project with the manual username replacement setup:
 
-1. Update project `bash pi-radio/update.sh`
-2. Restart script or Pi
+1. Pull latest changes `cd pi-radio && git pull`
+2. Run migration script `./migrate.sh`
+   - Automatically detects and removes old virtual environment
+   - Removes old crontab entries
+   - Sets up new systemd service
+   - Preserves your config.json bookmarks
+
+The migration script handles everything automatically - no manual steps needed!
+
+## Update (Existing New Installation)
+
+If you're already using the new installation setup and want to update:
+
+1. Stop the service (if running): `sudo systemctl stop pi-radio`
+2. Pull latest changes: `cd pi-radio && git pull`
+3. Reinstall dependencies: `./install.sh`
+4. Start the service: `sudo systemctl start pi-radio`
