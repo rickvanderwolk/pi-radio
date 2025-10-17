@@ -17,6 +17,7 @@ env/
 config.json
 *.log
 *.pid
+.backups/
 
 # OS
 .DS_Store

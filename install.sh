@@ -27,7 +27,7 @@ if ! grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null && ! grep -q "BCM" /proc/c
 fi
 
 # Install system dependencies
-echo -e "${GREEN}[1/6]${NC} Installing system dependencies..."
+echo -e "${GREEN}[1/5]${NC} Installing system dependencies..."
 sudo apt update
 sudo apt install -y python3-venv espeak pulseaudio ffmpeg
 
@@ -37,7 +37,7 @@ if ! command -v ffplay &> /dev/null; then
 fi
 
 # Create virtual environment in project directory
-echo -e "${GREEN}[2/6]${NC} Creating virtual environment..."
+echo -e "${GREEN}[2/5]${NC} Creating virtual environment..."
 if [ -d "${PROJECT_DIR}/.venv" ]; then
     echo -e "${YELLOW}Virtual environment already exists. Skipping creation.${NC}"
 else
@@ -46,11 +46,11 @@ else
 fi
 
 # Activate virtual environment
-echo -e "${GREEN}[3/6]${NC} Activating virtual environment..."
+echo -e "${GREEN}[3/5]${NC} Activating virtual environment..."
 source "${PROJECT_DIR}/.venv/bin/activate"
 
 # Install Python dependencies from requirements.txt
-echo -e "${GREEN}[4/6]${NC} Installing Python dependencies..."
+echo -e "${GREEN}[4/5]${NC} Installing Python dependencies..."
 if [ -f "${PROJECT_DIR}/requirements.txt" ]; then
     pip install --upgrade pip
     pip install -r "${PROJECT_DIR}/requirements.txt"
@@ -97,13 +97,9 @@ else
     echo -e "${GREEN}Configuration file found: config.json${NC}"
 fi
 
-# Make start script executable
-echo -e "${GREEN}[5/6]${NC} Setting up start script..."
-chmod +x "${PROJECT_DIR}/start_radio.sh"
-
 # Setup systemd service (always)
 echo ""
-echo -e "${GREEN}[6/6]${NC} Systemd service setup"
+echo -e "${GREEN}[5/5]${NC} Systemd service setup"
 echo "Installing systemd service..."
 
 # Create service file from template

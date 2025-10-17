@@ -28,7 +28,7 @@ A Python (Raspberry Pi) script to control online radio streaming with a gamepad.
 2. Boot the Pi (might take a while depending on which Pi you're using)
 3. Connect via SSH `ssh <your-pi-username>@<your-pi-ip>`
 4. Clone repository `git clone https://github.com/rickvanderwolk/pi-radio.git`
-5. Run install script `cd pi-radio && ./install.sh`
+5. Run install script `cd pi-radio && bash install.sh`
    - The installer will automatically detect your username and project directory
    - A systemd service will be set up for automatic startup on boot
 6. Done! The service is now running. See [Run script](#run-script) below for service management commands.
@@ -67,7 +67,7 @@ To update Pi-Radio to the latest version:
 
 ```bash
 cd pi-radio
-./update.sh
+bash update.sh
 ```
 
 The update script will:
@@ -105,11 +105,13 @@ You can add your own radio stations without modifying the default station list.
 
 ### How It Works
 
-- `default_stations.json` - Contains the default radio stations (updated with each release)
-- `custom_stations.json` - Your personal stations (never overwritten during updates)
-- Custom stations are merged with default stations at startup
-- If a custom station has the same name as a default station, the custom one takes priority
-- During updates, `custom_stations.json` is automatically preserved
+- `default_stations.json` - Contains the default radio stations (updated with each git pull)
+- `custom_stations.json` - Your personal stations (**never modified** by install/update scripts)
+- Station merging happens **only in memory** at runtime:
+  - Both files are loaded when the app starts
+  - Custom stations are combined with default stations
+  - If a custom station has the same name as a default station, the custom one takes priority
+- During updates, `custom_stations.json` is automatically backed up and restored unchanged
 
 ### Station Format
 
