@@ -2,7 +2,7 @@
 
 ![Pi-radio](IMG_0492.png)
 
-A Python (Raspberry Pi) script to control online radio streaming with a gamepad. Switch between stations, adjust volume, and manage playback using gamepad buttons.
+A Python (Raspberry Pi) project to control online radio streaming with a gamepad. Switch between stations, adjust volume, and manage playback using gamepad buttons.
 
 ## Table of Contents
 
