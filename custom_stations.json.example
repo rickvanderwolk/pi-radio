@@ -1,0 +1,12 @@
+{
+  "_comment": "This is an example custom stations file. Copy this to custom_stations.json and add your own stations.",
+  "_instructions": [
+    "1. Copy this file: cp custom_stations.json.example custom_stations.json",
+    "2. Remove the example stations below and add your own",
+    "3. Format: \"station_name\": \"stream_url\"",
+    "4. Custom stations will override default stations with the same name",
+    "5. This file will never be overwritten during updates"
+  ],
+  "my_favorite_station": "https://example.com/stream.mp3",
+  "another_station": "https://example.com/another-stream.mp3"
+}

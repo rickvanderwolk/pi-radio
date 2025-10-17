@@ -1,0 +1,20 @@
+[Unit]
+Description=Pi Radio - Internet Radio Controller
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%USER%
+WorkingDirectory=%PROJECT_DIR%
+Environment="PATH=%PROJECT_DIR%/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStartPre=/bin/sleep 5
+ExecStartPre=-/bin/sh -c 'pulseaudio --check || pulseaudio --start'
+ExecStart=%PROJECT_DIR%/.venv/bin/python %PROJECT_DIR%/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
