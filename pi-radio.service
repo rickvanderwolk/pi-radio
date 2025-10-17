@@ -7,8 +7,9 @@ Wants=network-online.target
 Type=simple
 User=%USER%
 WorkingDirectory=%PROJECT_DIR%
+Environment="PATH=%PROJECT_DIR%/.venv/bin:/usr/local/bin:/usr/bin:/bin"
 ExecStartPre=/bin/sleep 5
-ExecStartPre=/usr/bin/pulseaudio --check || /usr/bin/pulseaudio --start
+ExecStartPre=-/bin/sh -c 'pulseaudio --check || pulseaudio --start'
 ExecStart=%PROJECT_DIR%/.venv/bin/python %PROJECT_DIR%/main.py
 Restart=always
 RestartSec=10
