@@ -60,3 +60,21 @@ echo ""
 echo "Note: Your custom_stations.json has been preserved."
 echo "The default_stations.json has been updated with the latest stations."
 echo ""
+
+# Check if service is running and restart it
+if systemctl is-active --quiet pi-radio; then
+    echo "Restarting pi-radio service..."
+    sudo systemctl restart pi-radio
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Service restarted successfully!${NC}"
+        echo "Check status with: sudo systemctl status pi-radio"
+        echo "View logs with: journalctl -u pi-radio -f"
+    else
+        echo -e "${YELLOW}Warning: Failed to restart service. Please restart manually.${NC}"
+    fi
+else
+    echo -e "${YELLOW}Service is not running. Start it with: sudo systemctl start pi-radio${NC}"
+fi
+
+echo ""

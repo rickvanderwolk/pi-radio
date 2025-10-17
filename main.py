@@ -554,12 +554,13 @@ class GamepadController:
                 if event.code == const.JOYSTICK_X and self._is_debounced(const.JOYSTICK_X):
                     # Check if Select is held (admin mode)
                     if self.select_is_pressed and const.ADMIN_MODE_ENABLED:
+                        logger.info(f"Admin mode active - Joystick X state: {event.state}")
                         # Admin mode: Left = restart app, Right = speak IP
                         if event.state < const.JOYSTICK_MIN_THRESHOLD:
-                            logger.info("Admin: App restart triggered")
+                            logger.info("Admin command: App restart triggered")
                             self.system_manager.restart_app()
                         elif event.state > const.JOYSTICK_MAX_THRESHOLD:
-                            logger.info("Admin: Network info triggered")
+                            logger.info("Admin command: Network info triggered")
                             self.system_manager.speak_network_info()
                     else:
                         # Normal mode: Left = previous station, Right = next station
@@ -571,12 +572,13 @@ class GamepadController:
                 elif event.code == const.JOYSTICK_Y and self._is_debounced(const.JOYSTICK_Y):
                     # Check if Select is held (admin mode)
                     if self.select_is_pressed and const.ADMIN_MODE_ENABLED:
+                        logger.info(f"Admin mode active - Joystick Y state: {event.state}")
                         # Admin mode: Up = update, Down = reboot system
                         if event.state < const.JOYSTICK_MIN_THRESHOLD:
-                            logger.info("Admin: Update triggered")
+                            logger.info("Admin command: Update triggered")
                             self.system_manager.run_update()
                         elif event.state > const.JOYSTICK_MAX_THRESHOLD:
-                            logger.info("Admin: System reboot triggered")
+                            logger.info("Admin command: System reboot triggered")
                             self.system_manager.reboot_system()
                     else:
                         # Normal mode: Up = volume up, Down = volume down
