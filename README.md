@@ -61,7 +61,7 @@ sudo systemctl restart pi-radio
 journalctl -u pi-radio -f
 ```
 
-**Tip:** You can also restart the service using your gamepad! See [Gamepad Controls - Admin Commands](#admin-commands) for more information.
+**Tip:** You can also restart the service using your gamepad. See [Gamepad Controls - Admin Commands](#admin-commands) for more information.
 
 ## Update
 
