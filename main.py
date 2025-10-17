@@ -387,12 +387,12 @@ class SystemManager:
             self.speak("Reboot failed")
 
 
-class BookmarkManager:
-    """Manages station bookmarks."""
+class ConfigManager:
+    """Manages application configuration including bookmarks and admin settings."""
 
     def __init__(self, config_file: str):
         """
-        Initialize BookmarkManager.
+        Initialize ConfigManager.
 
         Args:
             config_file: Path to config file
@@ -402,18 +402,29 @@ class BookmarkManager:
 
     def _load_config(self) -> Dict:
         """Load configuration from file."""
+        # Default configuration
+        default_config = {
+            'bookmark_A': None,
+            'bookmark_B': None,
+            'admin_mode_enabled': True,
+            'admin_command_cooldown': 3.0
+        }
+
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r') as f:
                     config = json.load(f)
-                    logger.info(f"Config loaded: {config}")
-                    return config
+                    # Merge with defaults to ensure all keys exist
+                    merged_config = {**default_config, **config}
+                    logger.info(f"Config loaded: {merged_config}")
+                    return merged_config
             except json.JSONDecodeError as e:
                 logger.error(f"Invalid config file: {e}")
             except Exception as e:
                 logger.error(f"Error loading config: {e}")
 
-        return {'bookmark_A': None, 'bookmark_B': None}
+        logger.info("Using default configuration")
+        return default_config
 
     def _save_config(self):
         """Save configuration to file."""
@@ -448,23 +459,41 @@ class BookmarkManager:
         """
         return self.config.get(bookmark_name)
 
+    def get_admin_mode_enabled(self) -> bool:
+        """
+        Get admin mode enabled setting.
+
+        Returns:
+            True if admin mode is enabled, False otherwise
+        """
+        return self.config.get('admin_mode_enabled', True)
+
+    def get_admin_command_cooldown(self) -> float:
+        """
+        Get admin command cooldown in seconds.
+
+        Returns:
+            Cooldown time in seconds
+        """
+        return self.config.get('admin_command_cooldown', 3.0)
+
 
 class GamepadController:
     """Handles gamepad input and controls the radio."""
 
-    def __init__(self, player: RadioPlayer, volume: VolumeController, bookmarks: BookmarkManager, system_manager: SystemManager):
+    def __init__(self, player: RadioPlayer, volume: VolumeController, config_manager: ConfigManager, system_manager: SystemManager):
         """
         Initialize GamepadController.
 
         Args:
             player: RadioPlayer instance
             volume: VolumeController instance
-            bookmarks: BookmarkManager instance
+            config_manager: ConfigManager instance for bookmarks and admin settings
             system_manager: SystemManager instance for admin commands
         """
         self.player = player
         self.volume = volume
-        self.bookmarks = bookmarks
+        self.config_manager = config_manager
         self.system_manager = system_manager
 
         self.last_event_time: Dict[str, float] = {
@@ -503,7 +532,8 @@ class GamepadController:
             True if admin command can be executed, False otherwise
         """
         current_time = time.time()
-        if current_time - self.last_admin_command_time > const.ADMIN_COMMAND_COOLDOWN:
+        cooldown = self.config_manager.get_admin_command_cooldown()
+        if current_time - self.last_admin_command_time > cooldown:
             self.last_admin_command_time = current_time
             return True
         else:
@@ -518,11 +548,11 @@ class GamepadController:
         if self.select_pressed_time > 0 and current_time - self.select_pressed_time < const.BOOKMARK_SAVE_WINDOW:
             station = self.player.get_current_station()
             if station:
-                self.bookmarks.set_bookmark('bookmark_A', station)
+                self.config_manager.set_bookmark('bookmark_A', station)
                 self.player.speak(f"Bookmark A set to {station}")
         else:
             # Play bookmarked station
-            station = self.bookmarks.get_bookmark('bookmark_A')
+            station = self.config_manager.get_bookmark('bookmark_A')
             if station and self.player.station_manager.is_valid_station(station):
                 self.player.play_station_by_name(station)
             else:
@@ -539,11 +569,11 @@ class GamepadController:
         if self.select_pressed_time > 0 and current_time - self.select_pressed_time < const.BOOKMARK_SAVE_WINDOW:
             station = self.player.get_current_station()
             if station:
-                self.bookmarks.set_bookmark('bookmark_B', station)
+                self.config_manager.set_bookmark('bookmark_B', station)
                 self.player.speak(f"Bookmark B set to {station}")
         else:
             # Play bookmarked station
-            station = self.bookmarks.get_bookmark('bookmark_B')
+            station = self.config_manager.get_bookmark('bookmark_B')
             if station and self.player.station_manager.is_valid_station(station):
                 self.player.play_station_by_name(station)
             else:
@@ -601,7 +631,7 @@ class GamepadController:
             elif event.ev_type == 'Absolute':
                 if event.code == const.JOYSTICK_X and self._is_debounced(const.JOYSTICK_X):
                     # Check if Select is held (admin mode)
-                    if self.select_is_pressed and const.ADMIN_MODE_ENABLED:
+                    if self.select_is_pressed and self.config_manager.get_admin_mode_enabled():
                         # Check cooldown before executing admin command
                         if not self._can_execute_admin_command():
                             return
@@ -623,7 +653,7 @@ class GamepadController:
 
                 elif event.code == const.JOYSTICK_Y and self._is_debounced(const.JOYSTICK_Y):
                     # Check if Select is held (admin mode)
-                    if self.select_is_pressed and const.ADMIN_MODE_ENABLED:
+                    if self.select_is_pressed and self.config_manager.get_admin_mode_enabled():
                         # Check cooldown before executing admin command
                         if not self._can_execute_admin_command():
                             return
@@ -712,9 +742,9 @@ def main():
         station_manager = StationManager(base_dir)
         player = RadioPlayer(station_manager)
         volume = VolumeController()
-        bookmarks = BookmarkManager(os.path.join(base_dir, const.CONFIG_FILE))
+        config_manager = ConfigManager(os.path.join(base_dir, const.CONFIG_FILE))
         system_manager = SystemManager(base_dir, player.speak, player)
-        controller = GamepadController(player, volume, bookmarks, system_manager)
+        controller = GamepadController(player, volume, config_manager, system_manager)
     except Exception as e:
         logger.error(f"Failed to initialize components: {e}")
         return
@@ -723,7 +753,7 @@ def main():
     setup_signal_handlers(player)
 
     # Start with bookmarked station or first station
-    initial_station = bookmarks.get_bookmark('bookmark_A')
+    initial_station = config_manager.get_bookmark('bookmark_A')
     if initial_station and station_manager.is_valid_station(initial_station):
         player.play_station_by_name(initial_station)
     else:

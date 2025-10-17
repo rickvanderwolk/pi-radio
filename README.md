@@ -4,12 +4,15 @@
 
 A Python (Raspberry Pi) script to control online radio streaming with a gamepad. Switch between stations, adjust volume, and manage playback using gamepad buttons.
 
+## Table of Contents
+
 - [Hardware](#hardware)
-- [Getting started](#getting-started)
-- [Run script](#run-script)
+- [Getting Started](#getting-started)
+- [Managing the Service](#managing-the-service)
+- [Gamepad Controls](#gamepad-controls)
+- [Custom Radio Stations](#custom-radio-stations)
 - [Update](#update)
 
-<a id="hardware"></a>
 ## Hardware
 
 - Raspberry Pi; I use a Pi 4 but any Pi will probably do just fine. Just keep in mind that some models don't have a mini jack (including Pi 5) and normal USB ports. 
@@ -19,10 +22,7 @@ A Python (Raspberry Pi) script to control online radio streaming with a gamepad.
 - Power supply for the PC speakers; I recommend using a separate power supply for the PC speakers, as I noticed powering them through one of the USB ports on the Pi resulted in more audio stuttering
 - Optional: Case for the Pi; I've used https://www.thingiverse.com/thing:3975417 but you can use any case you want
 
-<a id="#getting-started"></a>
-## Getting started
-
-## Fresh Installation
+## Getting Started
 
 1. Install Raspberry Pi OS on a SD card. You can easily choose the right image and setup a username / password, Wi-Fi and enable SSH with the [Raspberry Pi OS imager](https://www.raspberrypi.com/software/). I've used the latest recommended image `Raspberry Pi OS (64-bit) - Release date 2024-07-04 - A port of Debian Bookworm with the Raspberry Pi Desktop` in the example below, but I recommend just installing the latest recommended version.
 2. Boot the Pi (might take a while depending on which Pi you're using)
@@ -30,66 +30,40 @@ A Python (Raspberry Pi) script to control online radio streaming with a gamepad.
 4. Clone repository `git clone https://github.com/rickvanderwolk/pi-radio.git`
 5. Run install script `cd pi-radio && ./install.sh`
    - The installer will automatically detect your username and project directory
-   - You'll be prompted whether to install as a systemd service (recommended)
-   - If you choose yes, Pi-Radio will start automatically on boot
-6. Done! If you installed the service, it's already running. Otherwise, see [Run script](#run-script) below.
+   - A systemd service will be set up for automatic startup on boot
+6. Done! The service is now running. See [Run script](#run-script) below for service management commands.
 
 The installation script will:
 - Install all system dependencies (Python, ffmpeg, espeak, pulseaudio)
 - Create a virtual environment in the project directory
 - Install Python dependencies from requirements.txt
-- Optionally set up a systemd service for automatic startup
+- Set up a systemd service for automatic startup
+- Create configuration file from template (config.json)
 
-<a id="#run-script"></a>
-## Run script
+## Managing the Service
 
-### With systemd service (recommended)
-
-If you installed the systemd service during installation:
+Pi-Radio runs as a systemd service and starts automatically on boot. Use these commands to manage it:
 
 ```bash
 # Check status
 sudo systemctl status pi-radio
 
-# Start manually
+# Start service
 sudo systemctl start pi-radio
 
-# Stop
+# Stop service
 sudo systemctl stop pi-radio
 
-# Restart
+# Restart service
 sudo systemctl restart pi-radio
 
 # View logs
 journalctl -u pi-radio -f
 ```
 
-### Manual run
+## Update
 
-If you prefer to run manually without the service:
-
-```bash
-cd pi-radio
-./start_radio.sh
-```
-
-<a id="#update"></a>
-## Migrating from Old Installation
-
-If you're using an old version of this project with the manual username replacement setup:
-
-1. Pull latest changes `cd pi-radio && git pull`
-2. Run migration script `./migrate.sh`
-   - Automatically detects and removes old virtual environment
-   - Removes old crontab entries
-   - Sets up new systemd service
-   - Preserves your config.json bookmarks
-
-The migration script handles everything automatically - no manual steps needed!
-
-## Update (Existing New Installation)
-
-If you're already using the new installation setup and want to update:
+To update Pi-Radio to the latest version:
 
 ```bash
 cd pi-radio
@@ -100,12 +74,9 @@ The update script will:
 - Automatically backup and restore your `custom_stations.json` (if it exists)
 - Update the `default_stations.json` with the latest stations
 - Reinstall dependencies
-- Preserve your bookmarks in `config.json`
+- Preserve your configuration in `config.json` (bookmarks and admin settings)
 
-Note: If the service is running, you may need to restart it after updating:
-```bash
-sudo systemctl restart pi-radio
-```
+Note: The service will be automatically restarted after the update completes.
 
 ## Custom Radio Stations
 
@@ -159,11 +130,40 @@ Most online radio stations have direct stream URLs. You can often find them:
 - Using browser developer tools to inspect audio elements
 - Searching for "[station name] stream url" online
 
-## Admin Commands
+## Gamepad Controls
 
-Pi-Radio includes admin commands that can be triggered via gamepad for system management. All admin commands are activated by holding the **Select** button and moving the joystick.
+Pi-Radio is controlled entirely via gamepad. Below are all available controls.
 
-### Available Admin Commands
+### Basic Controls
+
+| Button/Joystick | Action | Description |
+|-----------------|--------|-------------|
+| **Start** | Play/Pause | Toggle playback of the current station |
+| **Joystick Left** | Previous Station | Switch to the previous station in the list |
+| **Joystick Right** | Next Station | Switch to the next station in the list |
+| **Joystick Up** | Volume Up | Increase system volume |
+| **Joystick Down** | Volume Down | Decrease system volume |
+| **A Button** | Play Bookmark A | Play the station saved in bookmark A |
+| **B Button** | Play Bookmark B | Play the station saved in bookmark B |
+
+### Bookmarks
+
+You can save your favorite stations to two bookmarks (A and B):
+
+**To Save a Bookmark:**
+1. Play the station you want to bookmark
+2. **Hold down the Select button**
+3. **While holding Select, press A or B** (within 10 seconds)
+4. The system will confirm via text-to-speech: "Bookmark A set to [station name]"
+
+**To Play a Bookmark:**
+- Simply press **A** or **B** to instantly switch to your bookmarked station
+
+Bookmarks are saved in `config.json` and persist across reboots.
+
+### Admin Commands
+
+Pi-Radio includes admin commands for system management. All admin commands require holding the **Select** button while moving the joystick.
 
 | Command | Action | Description |
 |---------|--------|-------------|
@@ -172,32 +172,35 @@ Pi-Radio includes admin commands that can be triggered via gamepad for system ma
 | **Select + Joystick Left** | Restart App | Restarts the pi-radio service |
 | **Select + Joystick Down** | Reboot System | Reboots the entire Raspberry Pi |
 
-### How to Use Admin Commands
-
+**How to Use Admin Commands:**
 1. **Hold down the Select button**
 2. **While holding Select, move the joystick** in the desired direction
 3. **Release both** after the TTS confirmation
 
-The system will speak a confirmation message via text-to-speech before executing each command:
-- "Starting update" - Update process is starting
-- "IP address [ip], hostname [name]" - Network information
-- "Restarting application" - Service restart initiated
-- "Rebooting system" - System reboot initiated
+The system will speak a confirmation message via text-to-speech before executing each command.
 
-### Requirements for Admin Commands
-
+**Requirements:**
 - **Update**: Requires `update.sh` script in the project directory
 - **Restart App**: Requires sudo privileges for `systemctl restart pi-radio`
 - **Reboot System**: Requires sudo privileges for `reboot` command
 
-To ensure sudo commands work without password prompts, the pi-radio service should run with appropriate privileges (configured automatically by `install.sh`).
+The pi-radio service runs with appropriate privileges (configured automatically by `install.sh`).
 
-### Disabling Admin Commands
+### Configuring Controls
 
-If you want to disable admin commands via gamepad, edit `constants.py`:
+You can customize certain control behaviors by editing `config.json`:
 
-```python
-ADMIN_MODE_ENABLED = False  # Set to False to disable admin commands
+```json
+{
+  "bookmark_A": null,
+  "bookmark_B": null,
+  "admin_mode_enabled": true,
+  "admin_command_cooldown": 3.0
+}
 ```
 
-This will disable all admin functions while keeping normal radio controls active.
+- `admin_mode_enabled`: Set to `false` to disable all admin commands via gamepad
+- `admin_command_cooldown`: Time in seconds between admin commands (prevents accidental multiple triggers)
+- `bookmark_A` / `bookmark_B`: Automatically managed by the system when you save bookmarks
+
+**Note:** Your `config.json` is preserved during updates, so you won't lose your settings or bookmarks.

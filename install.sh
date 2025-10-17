@@ -83,6 +83,20 @@ else
     echo -e "${GREEN}Custom stations file found: custom_stations.json${NC}"
 fi
 
+# Setup config.json from example if it doesn't exist
+echo ""
+echo "Checking configuration file..."
+if [ ! -f "${PROJECT_DIR}/config.json" ]; then
+    if [ -f "${PROJECT_DIR}/config.json.example" ]; then
+        cp "${PROJECT_DIR}/config.json.example" "${PROJECT_DIR}/config.json"
+        echo -e "${GREEN}Created config.json from example${NC}"
+    else
+        echo -e "${YELLOW}Warning: config.json.example not found, config will be created automatically on first run${NC}"
+    fi
+else
+    echo -e "${GREEN}Configuration file found: config.json${NC}"
+fi
+
 # Make start script executable
 echo -e "${GREEN}[5/6]${NC} Setting up start script..."
 chmod +x "${PROJECT_DIR}/start_radio.sh"
