@@ -218,6 +218,143 @@ class VolumeController:
             logger.error(f"Error adjusting volume: {e}")
 
 
+class SystemManager:
+    """Manages system-level operations like network info, updates, and reboots."""
+
+    def __init__(self, base_dir: str, tts_callback):
+        """
+        Initialize SystemManager.
+
+        Args:
+            base_dir: Base directory of the project
+            tts_callback: Function to call for text-to-speech
+        """
+        self.base_dir = base_dir
+        self.speak = tts_callback
+        self.update_script = os.path.join(base_dir, const.UPDATE_SCRIPT)
+
+    def get_ip_address(self) -> Optional[str]:
+        """
+        Get the local IP address.
+
+        Returns:
+            IP address string or None if not found
+        """
+        try:
+            # Create a socket to get the local IP
+            import socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # Connect to an external address (doesn't actually send data)
+            # Using Cloudflare DNS (same as network check)
+            s.connect((const.NETWORK_CHECK_URL.replace('https://', ''), 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception as e:
+            logger.error(f"Failed to get IP address: {e}")
+            return None
+
+    def get_hostname(self) -> str:
+        """
+        Get the system hostname.
+
+        Returns:
+            Hostname string
+        """
+        try:
+            import socket
+            return socket.gethostname()
+        except Exception as e:
+            logger.error(f"Failed to get hostname: {e}")
+            return "unknown"
+
+    def speak_network_info(self):
+        """Speak the IP address and hostname via TTS."""
+        ip = self.get_ip_address()
+        hostname = self.get_hostname()
+
+        if ip:
+            message = f"IP address {ip}, hostname {hostname}"
+            logger.info(f"Network info: {message}")
+            self.speak(message)
+        else:
+            message = "Unable to retrieve IP address"
+            logger.warning(message)
+            self.speak(message)
+
+    def run_update(self):
+        """Run the update script."""
+        if not os.path.exists(self.update_script):
+            message = "Update script not found"
+            logger.error(message)
+            self.speak(message)
+            return
+
+        try:
+            self.speak("Starting update")
+            logger.info("Running update script...")
+
+            # Run update script in background
+            subprocess.Popen(
+                ['bash', self.update_script],
+                cwd=self.base_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+
+            logger.info("Update script started")
+        except Exception as e:
+            message = f"Failed to start update: {e}"
+            logger.error(message)
+            self.speak("Update failed")
+
+    def restart_app(self):
+        """Restart the pi-radio application service."""
+        try:
+            self.speak("Restarting application")
+            logger.info("Restarting application service...")
+
+            # Try systemctl restart
+            result = subprocess.run(
+                ['sudo', 'systemctl', 'restart', const.SERVICE_NAME],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            if result.returncode == 0:
+                logger.info("Service restart initiated")
+            else:
+                logger.error(f"Failed to restart service: {result.stderr}")
+                # If we're here, the restart failed but we're still running
+                self.speak("Restart failed")
+
+        except subprocess.TimeoutExpired:
+            # This is actually expected if we restart ourselves
+            logger.info("Service restart command sent (timeout expected)")
+        except Exception as e:
+            message = f"Failed to restart application: {e}"
+            logger.error(message)
+            self.speak("Restart failed")
+
+    def reboot_system(self):
+        """Reboot the entire system."""
+        try:
+            self.speak("Rebooting system")
+            logger.warning("System reboot initiated via gamepad!")
+
+            # Give TTS time to speak
+            time.sleep(2)
+
+            # Reboot the system
+            subprocess.run(['sudo', 'reboot'], check=False)
+
+        except Exception as e:
+            message = f"Failed to reboot system: {e}"
+            logger.error(message)
+            self.speak("Reboot failed")
+
+
 class BookmarkManager:
     """Manages station bookmarks."""
 
@@ -283,7 +420,7 @@ class BookmarkManager:
 class GamepadController:
     """Handles gamepad input and controls the radio."""
 
-    def __init__(self, player: RadioPlayer, volume: VolumeController, bookmarks: BookmarkManager):
+    def __init__(self, player: RadioPlayer, volume: VolumeController, bookmarks: BookmarkManager, system_manager: SystemManager):
         """
         Initialize GamepadController.
 
@@ -291,10 +428,12 @@ class GamepadController:
             player: RadioPlayer instance
             volume: VolumeController instance
             bookmarks: BookmarkManager instance
+            system_manager: SystemManager instance for admin commands
         """
         self.player = player
         self.volume = volume
         self.bookmarks = bookmarks
+        self.system_manager = system_manager
 
         self.last_event_time: Dict[str, float] = {
             const.BUTTON_SELECT: 0,
@@ -305,6 +444,7 @@ class GamepadController:
             const.JOYSTICK_Y: 0
         }
         self.select_pressed_time = 0
+        self.select_is_pressed = False  # Track if Select button is currently held down
 
     def _is_debounced(self, event_code: str) -> bool:
         """
@@ -321,11 +461,6 @@ class GamepadController:
             self.last_event_time[event_code] = current_time
             return True
         return False
-
-    def _handle_button_select(self):
-        """Handle Select button press."""
-        self.select_pressed_time = time.time()
-        logger.debug("Select button pressed, waiting for A or B...")
 
     def _handle_button_a(self):
         """Handle A button press."""
@@ -389,32 +524,66 @@ class GamepadController:
         """
         try:
             # Button events
-            if event.ev_type == 'Key' and event.state == 1:
-                if not self._is_debounced(event.code):
+            if event.ev_type == 'Key':
+                # Track Select button state (pressed or released)
+                if event.code == const.BUTTON_SELECT:
+                    if event.state == 1:  # Pressed
+                        self.select_is_pressed = True
+                        self.select_pressed_time = time.time()
+                        logger.debug("Select button pressed (admin mode active)")
+                    elif event.state == 0:  # Released
+                        self.select_is_pressed = False
+                        self.select_pressed_time = 0
+                        logger.debug("Select button released (admin mode inactive)")
                     return
 
-                if event.code == const.BUTTON_SELECT:
-                    self._handle_button_select()
-                elif event.code == const.BUTTON_A:
-                    self._handle_button_a()
-                elif event.code == const.BUTTON_B:
-                    self._handle_button_b()
-                elif event.code == const.BUTTON_START:
-                    self._handle_button_start()
+                # Handle other buttons only on press (state == 1)
+                if event.state == 1:
+                    if not self._is_debounced(event.code):
+                        return
+
+                    if event.code == const.BUTTON_A:
+                        self._handle_button_a()
+                    elif event.code == const.BUTTON_B:
+                        self._handle_button_b()
+                    elif event.code == const.BUTTON_START:
+                        self._handle_button_start()
 
             # Joystick events
             elif event.ev_type == 'Absolute':
                 if event.code == const.JOYSTICK_X and self._is_debounced(const.JOYSTICK_X):
-                    if event.state < const.JOYSTICK_MIN_THRESHOLD:
-                        self.player.previous_station()
-                    elif event.state > const.JOYSTICK_MAX_THRESHOLD:
-                        self.player.next_station()
+                    # Check if Select is held (admin mode)
+                    if self.select_is_pressed and const.ADMIN_MODE_ENABLED:
+                        # Admin mode: Left = restart app, Right = speak IP
+                        if event.state < const.JOYSTICK_MIN_THRESHOLD:
+                            logger.info("Admin: App restart triggered")
+                            self.system_manager.restart_app()
+                        elif event.state > const.JOYSTICK_MAX_THRESHOLD:
+                            logger.info("Admin: Network info triggered")
+                            self.system_manager.speak_network_info()
+                    else:
+                        # Normal mode: Left = previous station, Right = next station
+                        if event.state < const.JOYSTICK_MIN_THRESHOLD:
+                            self.player.previous_station()
+                        elif event.state > const.JOYSTICK_MAX_THRESHOLD:
+                            self.player.next_station()
 
                 elif event.code == const.JOYSTICK_Y and self._is_debounced(const.JOYSTICK_Y):
-                    if event.state < const.JOYSTICK_MIN_THRESHOLD:
-                        self.volume.adjust("up")
-                    elif event.state > const.JOYSTICK_MAX_THRESHOLD:
-                        self.volume.adjust("down")
+                    # Check if Select is held (admin mode)
+                    if self.select_is_pressed and const.ADMIN_MODE_ENABLED:
+                        # Admin mode: Up = update, Down = reboot system
+                        if event.state < const.JOYSTICK_MIN_THRESHOLD:
+                            logger.info("Admin: Update triggered")
+                            self.system_manager.run_update()
+                        elif event.state > const.JOYSTICK_MAX_THRESHOLD:
+                            logger.info("Admin: System reboot triggered")
+                            self.system_manager.reboot_system()
+                    else:
+                        # Normal mode: Up = volume up, Down = volume down
+                        if event.state < const.JOYSTICK_MIN_THRESHOLD:
+                            self.volume.adjust("up")
+                        elif event.state > const.JOYSTICK_MAX_THRESHOLD:
+                            self.volume.adjust("down")
 
         except Exception as e:
             logger.error(f"Error processing event: {e}")
@@ -486,7 +655,8 @@ def main():
         player = RadioPlayer(station_manager)
         volume = VolumeController()
         bookmarks = BookmarkManager(os.path.join(base_dir, const.CONFIG_FILE))
-        controller = GamepadController(player, volume, bookmarks)
+        system_manager = SystemManager(base_dir, player.speak)
+        controller = GamepadController(player, volume, bookmarks, system_manager)
     except Exception as e:
         logger.error(f"Failed to initialize components: {e}")
         return

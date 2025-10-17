@@ -158,3 +158,46 @@ Most online radio stations have direct stream URLs. You can often find them:
 - On the station's website (look for "Listen" or "Stream" links)
 - Using browser developer tools to inspect audio elements
 - Searching for "[station name] stream url" online
+
+## Admin Commands
+
+Pi-Radio includes admin commands that can be triggered via gamepad for system management. All admin commands are activated by holding the **Select** button and moving the joystick.
+
+### Available Admin Commands
+
+| Command | Action | Description |
+|---------|--------|-------------|
+| **Select + Joystick Up** | Update | Runs `./update.sh` to update Pi-Radio to the latest version |
+| **Select + Joystick Right** | Network Info | Speaks the IP address and hostname via TTS |
+| **Select + Joystick Left** | Restart App | Restarts the pi-radio service |
+| **Select + Joystick Down** | Reboot System | Reboots the entire Raspberry Pi |
+
+### How to Use Admin Commands
+
+1. **Hold down the Select button**
+2. **While holding Select, move the joystick** in the desired direction
+3. **Release both** after the TTS confirmation
+
+The system will speak a confirmation message via text-to-speech before executing each command:
+- "Starting update" - Update process is starting
+- "IP address [ip], hostname [name]" - Network information
+- "Restarting application" - Service restart initiated
+- "Rebooting system" - System reboot initiated
+
+### Requirements for Admin Commands
+
+- **Update**: Requires `update.sh` script in the project directory
+- **Restart App**: Requires sudo privileges for `systemctl restart pi-radio`
+- **Reboot System**: Requires sudo privileges for `reboot` command
+
+To ensure sudo commands work without password prompts, the pi-radio service should run with appropriate privileges (configured automatically by `install.sh`).
+
+### Disabling Admin Commands
+
+If you want to disable admin commands via gamepad, edit `constants.py`:
+
+```python
+ADMIN_MODE_ENABLED = False  # Set to False to disable admin commands
+```
+
+This will disable all admin functions while keeping normal radio controls active.

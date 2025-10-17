@@ -37,6 +37,13 @@ JOYSTICK_Y = 'ABS_Y'
 CONFIG_FILE = 'config.json'
 DEFAULT_STATIONS_FILE = 'default_stations.json'
 CUSTOM_STATIONS_FILE = 'custom_stations.json'
+UPDATE_SCRIPT = 'update.sh'
+
+# Service settings
+SERVICE_NAME = 'pi-radio'
+
+# Admin mode settings
+ADMIN_MODE_ENABLED = True  # Set to False to disable admin commands via gamepad
 
 # Logging
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
