@@ -63,77 +63,6 @@ journalctl -u pi-radio -f
 
 **Tip:** You can also restart the service using your gamepad. See [Gamepad Controls - Admin Commands](#admin-commands) for more information.
 
-## Update
-
-To update Pi-Radio to the latest version:
-
-```bash
-cd pi-radio
-bash update.sh
-```
-
-The update script will:
-- Automatically backup and restore your `custom_stations.json` (if it exists)
-- Update the `default_stations.json` with the latest stations
-- Reinstall dependencies
-- Preserve your configuration in `config.json` (bookmarks and admin settings)
-
-Note: The service will be automatically restarted after the update completes.
-
-## Custom Radio Stations
-
-You can add your own radio stations without modifying the default station list.
-
-### Adding Custom Stations
-
-1. Create a `custom_stations.json` file in the project directory:
-   ```bash
-   cd pi-radio
-   cp custom_stations.json.example custom_stations.json
-   ```
-
-2. Edit the file and add your stations:
-   ```json
-   {
-     "my_station": "https://example.com/stream.mp3",
-     "another_station": "http://radio.example.org/live"
-   }
-   ```
-
-3. Restart the service (if running):
-   ```bash
-   sudo systemctl restart pi-radio
-   ```
-
-### How It Works
-
-- `default_stations.json` - Contains the default radio stations (updated with each git pull)
-- `custom_stations.json` - Your personal stations (**never modified** by install/update scripts)
-- Station merging happens **only in memory** at runtime:
-  - Both files are loaded when the app starts
-  - Custom stations are combined with default stations
-  - If a custom station has the same name as a default station, the custom one takes priority
-- During updates, `custom_stations.json` is automatically backed up and restored unchanged
-
-### Station Format
-
-Each station is a simple key-value pair:
-```json
-{
-  "station_name": "stream_url"
-}
-```
-
-- Station name should be lowercase with underscores (e.g., `my_favorite_station`)
-- URL should be a direct stream URL (usually ends in .mp3, .aac, etc.)
-
-### Finding Stream URLs
-
-Most online radio stations have direct stream URLs. You can often find them:
-- On the station's website (look for "Listen" or "Stream" links)
-- Using browser developer tools to inspect audio elements
-- Searching for "[station name] stream url" online
-
 ## Gamepad Controls
 
 Pi-Radio is controlled entirely via gamepad. Below are all available controls.
@@ -208,3 +137,74 @@ You can customize certain control behaviors by editing `config.json`:
 - `bookmark_A` / `bookmark_B`: Automatically managed by the system when you save bookmarks
 
 **Note:** Your `config.json` is preserved during updates, so you won't lose your settings or bookmarks.
+
+## Custom Radio Stations
+
+You can add your own radio stations without modifying the default station list.
+
+### Adding Custom Stations
+
+1. Create a `custom_stations.json` file in the project directory:
+   ```bash
+   cd pi-radio
+   cp custom_stations.json.example custom_stations.json
+   ```
+
+2. Edit the file and add your stations:
+   ```json
+   {
+     "my_station": "https://example.com/stream.mp3",
+     "another_station": "http://radio.example.org/live"
+   }
+   ```
+
+3. Restart the service (if running):
+   ```bash
+   sudo systemctl restart pi-radio
+   ```
+
+### How It Works
+
+- `default_stations.json` - Contains the default radio stations (updated with each git pull)
+- `custom_stations.json` - Your personal stations (**never modified** by install/update scripts)
+- Station merging happens **only in memory** at runtime:
+  - Both files are loaded when the app starts
+  - Custom stations are combined with default stations
+  - If a custom station has the same name as a default station, the custom one takes priority
+- During updates, `custom_stations.json` is automatically backed up and restored unchanged
+
+### Station Format
+
+Each station is a simple key-value pair:
+```json
+{
+  "station_name": "stream_url"
+}
+```
+
+- Station name should be lowercase with underscores (e.g., `my_favorite_station`)
+- URL should be a direct stream URL (usually ends in .mp3, .aac, etc.)
+
+### Finding Stream URLs
+
+Most online radio stations have direct stream URLs. You can often find them:
+- On the station's website (look for "Listen" or "Stream" links)
+- Using browser developer tools to inspect audio elements
+- Searching for "[station name] stream url" online
+
+## Update
+
+To update Pi-Radio to the latest version:
+
+```bash
+cd pi-radio
+bash update.sh
+```
+
+The update script will:
+- Automatically backup and restore your `custom_stations.json` (if it exists)
+- Update the `default_stations.json` with the latest stations
+- Reinstall dependencies
+- Preserve your configuration in `config.json` (bookmarks and admin settings)
+
+Note: The service will be automatically restarted after the update completes.
