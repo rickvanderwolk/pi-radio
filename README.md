@@ -31,7 +31,7 @@ A Python (Raspberry Pi) project to control online radio streaming with a gamepad
 5. Run install script `cd pi-radio && bash install.sh`
    - The installer will automatically detect your username and project directory
    - A systemd service will be set up for automatic startup on boot
-6. Done! The service is now running. See [Run script](#run-script) below for service management commands.
+6. Done! The service is now running. See [Managing the Service](#managing-the-service) below for service management commands.
 
 The installation script will:
 - Install all system dependencies (Python, ffmpeg, espeak, pulseaudio)
@@ -60,6 +60,8 @@ sudo systemctl restart pi-radio
 # View logs
 journalctl -u pi-radio -f
 ```
+
+**Tip:** You can also restart the service using your gamepad! See [Gamepad Controls - Admin Commands](#admin-commands) for more information.
 
 ## Update
 
