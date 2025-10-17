@@ -21,6 +21,54 @@ echo -e "Installing for user: ${GREEN}${CURRENT_USER}${NC}"
 echo -e "Project directory: ${GREEN}${PROJECT_DIR}${NC}"
 echo ""
 
+# ============================================================================
+# MIGRATION: Detect and cleanup old setup (one-time, automatic)
+# ============================================================================
+if [ -d "${PROJECT_DIR}/pi-radio" ] && [ -f "${PROJECT_DIR}/pi-radio/bin/activate" ]; then
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}Old pi-radio setup detected - Starting automatic migration...${NC}"
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+
+    # Stop old processes
+    echo -e "${YELLOW}[Migration 1/3]${NC} Stopping old processes..."
+    if pkill -f "python.*main.py" 2>/dev/null; then
+        echo "  ✓ Stopped old Python process"
+    else
+        echo "  ○ No old Python process found"
+    fi
+
+    if pkill -f "start_radio.sh" 2>/dev/null; then
+        echo "  ✓ Stopped start_radio.sh process"
+    else
+        echo "  ○ No start_radio.sh process found"
+    fi
+
+    # Remove cron jobs
+    echo ""
+    echo -e "${YELLOW}[Migration 2/3]${NC} Checking cron jobs..."
+    if crontab -l 2>/dev/null | grep -q -E "(pi-radio|start_radio\.sh)"; then
+        echo "  Found old pi-radio cron jobs, removing..."
+        crontab -l 2>/dev/null | grep -v "pi-radio" | grep -v "start_radio.sh" | crontab - 2>/dev/null
+        echo "  ✓ Cron jobs cleaned"
+    else
+        echo "  ○ No pi-radio cron jobs found"
+    fi
+
+    # Remove old venv
+    echo ""
+    echo -e "${YELLOW}[Migration 3/3]${NC} Removing old virtual environment..."
+    rm -rf "${PROJECT_DIR}/pi-radio"
+    echo "  ✓ Old venv directory removed (${PROJECT_DIR}/pi-radio/)"
+
+    echo ""
+    echo -e "${GREEN}✓ Migration complete!${NC}"
+    echo -e "${GREEN}  Your system is now ready for the new systemd-based setup.${NC}"
+    echo ""
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+fi
+
 # Check if running on Raspberry Pi
 if ! grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null && ! grep -q "BCM" /proc/cpuinfo 2>/dev/null; then
     echo -e "${YELLOW}Warning: This doesn't appear to be a Raspberry Pi. Continuing anyway...${NC}"
