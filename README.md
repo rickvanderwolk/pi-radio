@@ -91,7 +91,70 @@ The migration script handles everything automatically - no manual steps needed!
 
 If you're already using the new installation setup and want to update:
 
-1. Stop the service (if running): `sudo systemctl stop pi-radio`
-2. Pull latest changes: `cd pi-radio && git pull`
-3. Reinstall dependencies: `./install.sh`
-4. Start the service: `sudo systemctl start pi-radio`
+```bash
+cd pi-radio
+./update.sh
+```
+
+The update script will:
+- Automatically backup and restore your `custom_stations.json` (if it exists)
+- Update the `default_stations.json` with the latest stations
+- Reinstall dependencies
+- Preserve your bookmarks in `config.json`
+
+Note: If the service is running, you may need to restart it after updating:
+```bash
+sudo systemctl restart pi-radio
+```
+
+## Custom Radio Stations
+
+You can add your own radio stations without modifying the default station list.
+
+### Adding Custom Stations
+
+1. Create a `custom_stations.json` file in the project directory:
+   ```bash
+   cd pi-radio
+   cp custom_stations.json.example custom_stations.json
+   ```
+
+2. Edit the file and add your stations:
+   ```json
+   {
+     "my_station": "https://example.com/stream.mp3",
+     "another_station": "http://radio.example.org/live"
+   }
+   ```
+
+3. Restart the service (if running):
+   ```bash
+   sudo systemctl restart pi-radio
+   ```
+
+### How It Works
+
+- `default_stations.json` - Contains the default radio stations (updated with each release)
+- `custom_stations.json` - Your personal stations (never overwritten during updates)
+- Custom stations are merged with default stations at startup
+- If a custom station has the same name as a default station, the custom one takes priority
+- During updates, `custom_stations.json` is automatically preserved
+
+### Station Format
+
+Each station is a simple key-value pair:
+```json
+{
+  "station_name": "stream_url"
+}
+```
+
+- Station name should be lowercase with underscores (e.g., `my_favorite_station`)
+- URL should be a direct stream URL (usually ends in .mp3, .aac, etc.)
+
+### Finding Stream URLs
+
+Most online radio stations have direct stream URLs. You can often find them:
+- On the station's website (look for "Listen" or "Stream" links)
+- Using browser developer tools to inspect audio elements
+- Searching for "[station name] stream url" online

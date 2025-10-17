@@ -59,6 +59,30 @@ else
     exit 1
 fi
 
+# Check station files
+echo ""
+echo "Checking station configuration files..."
+if [ ! -f "${PROJECT_DIR}/default_stations.json" ]; then
+    echo -e "${RED}Error: default_stations.json not found!${NC}"
+    exit 1
+fi
+
+# Create custom_stations.json.example if it doesn't exist
+if [ ! -f "${PROJECT_DIR}/custom_stations.json.example" ]; then
+    echo -e "${YELLOW}Warning: custom_stations.json.example not found!${NC}"
+fi
+
+# Inform user about custom stations
+if [ ! -f "${PROJECT_DIR}/custom_stations.json" ]; then
+    echo -e "${YELLOW}No custom stations file found.${NC}"
+    echo "To add your own stations:"
+    echo "  1. Create custom_stations.json in ${PROJECT_DIR}"
+    echo "  2. Add your stations in JSON format: {\"name\": \"url\"}"
+    echo "  3. See custom_stations.json.example for reference"
+else
+    echo -e "${GREEN}Custom stations file found: custom_stations.json${NC}"
+fi
+
 # Make start script executable
 echo -e "${GREEN}[5/6]${NC} Setting up start script..."
 chmod +x "${PROJECT_DIR}/start_radio.sh"

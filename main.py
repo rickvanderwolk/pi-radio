@@ -1,188 +1,525 @@
+"""
+Pi Radio - Gamepad-controlled internet radio player.
+"""
 import time
 import os
 import signal
 import subprocess
 import json
+import logging
+import shutil
+from typing import Optional, Dict
 from inputs import get_gamepad
 import pyttsx3
 import requests
 
-DEBOUNCE_TIME = 0.3
+from stations import StationManager
+import constants as const
 
-last_event_time = {
-    'BTN_BASE3': 0, # Select button
-    'BTN_BASE4': 0, # Start button
-    'BTN_TRIGGER': 0, # Button A
-    'BTN_THUMB': 0, # Button B
-    'ABS_X': 0, # Joystick left / right
-    'ABS_Y': 0 # Joystick up / down
-}
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format=const.LOG_FORMAT,
+    datefmt=const.LOG_DATE_FORMAT
+)
+logger = logging.getLogger(__name__)
 
-radio_stations = {
-    'inthahouse': 'https://ex52.voordeligstreamen.nl/8056/stream',
-    'sublime': 'https://stream.sublime.nl/web21_mp3?dist=sublime_website',
-    'radio4': 'https://icecast.omroep.nl/radio4-bb-mp3',
-    '1000_hits_love': 'https://ais-sa2.cdnstream1.com/2210_128.mp3',
-    '538_radio': 'https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO538.mp3',
-    '538_dancedepartment': 'https://playerservices.streamtheworld.com/api/livestream-redirect/TLPSTR01.mp3',
-    '538_hitzone': 'https://playerservices.streamtheworld.com/api/livestream-redirect/TLPSTR11.mp3',
-    '538_nonstop': 'https://playerservices.streamtheworld.com/api/livestream-redirect/TLPSTR09.mp3',
-    '538_top50': 'https://playerservices.streamtheworld.com/api/livestream-redirect/TLPSTR13.mp3',
-    'qmusic': 'https://stream.qmusic.nl/qmusic/mp3',
-    'qnonstop': 'https://stream.qmusic.nl/nonstop/mp3',
-    'skyradio_nonstop': 'https://25583.live.streamtheworld.com/SKYRADIO.mp3',
-    'slam': 'https://stream.slam.nl/slam_mp3',
-    'slam_mixmarathon': 'https://stream.slam.nl/web13_mp3',
-    'slam_nonstop': 'https://stream.slam.nl/web10_mp3',
-    'slam_the_boom_room': 'https://stream.slam.nl/web12_mp3',
-    'slam_hardstyle': 'https://stream.slam.nl/web11_mp3',
-    'slam_housuh_in_de_pauzuh': 'https://stream.slam.nl/web16_mp3',
-    'cadena_digital': 'http://185.23.192.118:8006/;stream.mp3',
-    'dnbradio': 'https://azrelay.drmnbss.org/listen/dnbradio/radio.mp3',
-    '3fm': 'http://icecast.omroep.nl/3fm-bb-mp3',
-    'theradio.cc': 'http://mp3.theradio.cc/',
-    'public_domain_radio_classical': 'http://relay.publicdomainradio.org/classical.mp3',
-    'public_domain_radio_jazz': 'http://relay.publicdomainradio.org/jazz_swing.mp3',
-    'somafm_groove_salad': 'https://ice2.somafm.com/groovesalad-128-mp3',
-    'somafm_drone_zone': 'https://ice2.somafm.com/dronezone-128-mp3',
-    'somafm_deep_space_one': 'https://ice2.somafm.com/deepspaceone-128-mp3',
-    'somafm_synphaera_radio': 'https://ice2.somafm.com/synphaera-128-mp3',
-    'somafm_bossa_beyond': 'https://ice2.somafm.com/bossa-128-mp3',
-    'somafm_dubstep_beyond': 'https://ice2.somafm.com/dubstep-128-mp3',
-    'somafm_beat_blender': 'https://ice2.somafm.com/beatblender-128-mp3',
-    'somafm_the_trip': 'https://ice2.somafm.com/thetrip-128-mp3',
-    'somafm_sonic_universe': 'https://ice2.somafm.com/sonicuniverse-128-mp3',
-    'somafm_def_con_radio': 'https://ice2.somafm.com/defcon-128-mp3',
-}
 
-stations = list(radio_stations.keys())
-current_station_index = 0
-current_process = None
-config_file = os.path.join(os.path.dirname(__file__), 'config.json')
-select_pressed_time = 0
-network_connected = False
+class RadioPlayer:
+    """Manages radio streaming and playback."""
 
-def wait_for_network(timeout=30):
-    print("Waiting for network connectivity...")
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+    def __init__(self, station_manager: StationManager):
+        """
+        Initialize the RadioPlayer.
+
+        Args:
+            station_manager: StationManager instance for accessing stations
+        """
+        self.station_manager = station_manager
+        self.stations = station_manager.get_station_names()
+        self.current_station_index = 0
+        self.current_process: Optional[subprocess.Popen] = None
+        self.tts_engine: Optional[pyttsx3.Engine] = None
+        self._init_tts()
+
+    def _init_tts(self):
+        """Initialize text-to-speech engine."""
         try:
-            requests.get('https://1.1.1.1', timeout=5)
-            print("Network connectivity established.")
-            return True
-        except requests.ConnectionError:
-            print("Network not available, retrying...")
-            time.sleep(5)
-    print("Network not available after waiting for 30 seconds.")
-    return False
+            self.tts_engine = pyttsx3.init()
+            logger.info("Text-to-speech initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize text-to-speech: {e}")
+            self.tts_engine = None
 
-def speak_text(text):
-    engine = pyttsx3.init()
-    engine.say(text)
-    engine.runAndWait()
+    def speak(self, text: str):
+        """
+        Speak text using TTS.
 
-def load_config():
-    if os.path.exists(config_file):
-        with open(config_file, 'r') as file:
-            return json.load(file)
-    else:
+        Args:
+            text: Text to speak
+        """
+        if self.tts_engine is None:
+            logger.warning(f"TTS not available, would have said: {text}")
+            return
+
+        try:
+            self.tts_engine.say(text)
+            self.tts_engine.runAndWait()
+        except Exception as e:
+            logger.error(f"TTS error: {e}")
+
+    def start_stream(self, station_name: str):
+        """
+        Start streaming a radio station.
+
+        Args:
+            station_name: Name of the station to stream
+        """
+        # Validate station
+        stream_url = self.station_manager.get_station_url(station_name)
+        if stream_url is None:
+            logger.error(f"Station '{station_name}' not found, using default")
+            if not self.stations:
+                logger.error("No stations available!")
+                return
+            station_name = self.stations[0]
+            stream_url = self.station_manager.get_station_url(station_name)
+
+        # Stop any current stream
+        self.stop_stream()
+
+        # Check if ffplay is available
+        if shutil.which('ffplay') is None:
+            logger.error("ffplay not found! Install ffmpeg to play audio.")
+            return
+
+        # Start new stream
+        self.speak(f"Starting stream of {station_name}")
+        logger.info(f"Starting stream: {station_name} -> {stream_url}")
+
+        command = [
+            'ffplay',
+            '-autoexit',
+            '-nodisp',
+            '-rtbufsize', const.FFPLAY_BUFFER_SIZE,
+            '-max_delay', const.FFPLAY_MAX_DELAY,
+            stream_url
+        ]
+
+        try:
+            self.current_process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            logger.info(f"Stream started successfully: {station_name}")
+        except Exception as e:
+            logger.error(f"Failed to start stream: {e}")
+            self.current_process = None
+
+    def stop_stream(self):
+        """Stop the current stream if playing."""
+        if self.current_process is not None:
+            try:
+                self.current_process.terminate()
+                self.current_process.wait(timeout=5)
+                logger.info("Stream stopped")
+            except subprocess.TimeoutExpired:
+                logger.warning("Stream didn't stop gracefully, killing...")
+                self.current_process.kill()
+            except Exception as e:
+                logger.error(f"Error stopping stream: {e}")
+            finally:
+                self.current_process = None
+
+    def next_station(self):
+        """Switch to the next station."""
+        if not self.stations:
+            logger.error("No stations available")
+            return
+
+        self.current_station_index = (self.current_station_index + 1) % len(self.stations)
+        self.start_stream(self.stations[self.current_station_index])
+
+    def previous_station(self):
+        """Switch to the previous station."""
+        if not self.stations:
+            logger.error("No stations available")
+            return
+
+        self.current_station_index = (self.current_station_index - 1) % len(self.stations)
+        self.start_stream(self.stations[self.current_station_index])
+
+    def play_station_by_name(self, station_name: str):
+        """
+        Play a specific station by name.
+
+        Args:
+            station_name: Name of station to play
+        """
+        if station_name in self.stations:
+            self.current_station_index = self.stations.index(station_name)
+            self.start_stream(station_name)
+        else:
+            logger.warning(f"Station '{station_name}' not found")
+            self.start_stream(self.stations[0])
+
+    def is_playing(self) -> bool:
+        """Check if a stream is currently playing."""
+        return self.current_process is not None
+
+    def get_current_station(self) -> Optional[str]:
+        """Get the name of the currently playing station."""
+        if 0 <= self.current_station_index < len(self.stations):
+            return self.stations[self.current_station_index]
+        return None
+
+
+class VolumeController:
+    """Manages system volume control."""
+
+    def __init__(self):
+        """Initialize the VolumeController."""
+        self.amixer_path = shutil.which('amixer')
+        if self.amixer_path is None:
+            logger.error("amixer not found! Volume control disabled.")
+
+    def adjust(self, direction: str):
+        """
+        Adjust system volume.
+
+        Args:
+            direction: 'up' or 'down'
+        """
+        if self.amixer_path is None:
+            logger.warning("Volume control not available")
+            return
+
+        try:
+            # Unmute first
+            subprocess.call([self.amixer_path, 'set', 'Master', 'unmute'],
+                          stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL)
+
+            # Adjust volume
+            if direction == "up":
+                command = [self.amixer_path, 'set', 'Master', f'{const.VOLUME_STEP}+']
+            elif direction == "down":
+                command = [self.amixer_path, 'set', 'Master', f'{const.VOLUME_STEP}-']
+            else:
+                logger.warning(f"Invalid volume direction: {direction}")
+                return
+
+            subprocess.call(command,
+                          stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL)
+            logger.info(f"Volume adjusted: {direction}")
+        except Exception as e:
+            logger.error(f"Error adjusting volume: {e}")
+
+
+class BookmarkManager:
+    """Manages station bookmarks."""
+
+    def __init__(self, config_file: str):
+        """
+        Initialize BookmarkManager.
+
+        Args:
+            config_file: Path to config file
+        """
+        self.config_file = config_file
+        self.config = self._load_config()
+
+    def _load_config(self) -> Dict:
+        """Load configuration from file."""
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r') as f:
+                    config = json.load(f)
+                    logger.info(f"Config loaded: {config}")
+                    return config
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid config file: {e}")
+            except Exception as e:
+                logger.error(f"Error loading config: {e}")
+
         return {'bookmark_A': None, 'bookmark_B': None}
 
-def save_config(config):
-    with open(config_file, 'w') as file:
-        json.dump(config, file)
+    def _save_config(self):
+        """Save configuration to file."""
+        try:
+            with open(self.config_file, 'w') as f:
+                json.dump(self.config, f, indent=2)
+            logger.info(f"Config saved: {self.config}")
+        except Exception as e:
+            logger.error(f"Error saving config: {e}")
 
-def start_stream(station):
-    global current_process
-    if station not in radio_stations:
-        print(f"Station '{station}' is not valid. Starting default station.")
-        station = stations[0]
-    stop_stream()
-    speak_text(f"Starting stream of {station}")
-    stream_url = radio_stations[station]
-    command = ['ffplay', '-autoexit', '-nodisp', '-rtbufsize', '1500M', '-max_delay', '5000000', stream_url]
-    current_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    print(f"Streaming audio van {station}... Druk op Ctrl+C om te stoppen.")
+    def set_bookmark(self, bookmark_name: str, station_name: str):
+        """
+        Set a bookmark to a station.
 
-def stop_stream():
-    global current_process
-    if current_process is not None:
-        current_process.terminate()
-        current_process.wait()
-        current_process = None
-        print("Stream gestopt.")
+        Args:
+            bookmark_name: 'bookmark_A' or 'bookmark_B'
+            station_name: Station to bookmark
+        """
+        self.config[bookmark_name] = station_name
+        self._save_config()
+        logger.info(f"{bookmark_name} set to {station_name}")
 
-def adjust_volume(direction):
-    amixer_path = '/usr/bin/amixer'
-    subprocess.call([amixer_path, 'set', 'Master', 'unmute'])
+    def get_bookmark(self, bookmark_name: str) -> Optional[str]:
+        """
+        Get bookmarked station.
 
-    if direction == "up":
-        command = [amixer_path, 'set', 'Master', '5%+']
-    elif direction == "down":
-        command = [amixer_path, 'set', 'Master', '5%-']
+        Args:
+            bookmark_name: 'bookmark_A' or 'bookmark_B'
 
-    subprocess.call(command)
-    print(f"Volume {direction}")
+        Returns:
+            Station name or None
+        """
+        return self.config.get(bookmark_name)
 
-def process_event(event):
-    global current_station_index, select_pressed_time
-    current_time = time.time()
 
-    if event.ev_type == 'Key' and event.state == 1 and current_time - last_event_time.get(event.code, 0) > DEBOUNCE_TIME:
-        if event.code == 'BTN_BASE3':
-            select_pressed_time = current_time
-            print("Select button pressed, waiting for A or B...")
-            last_event_time['BTN_BASE3'] = current_time
-        elif event.code in ['BTN_TRIGGER', 'BTN_THUMB']:
-            if select_pressed_time > 0 and current_time - select_pressed_time < 10:
-                button = 'bookmark_A' if event.code == 'BTN_TRIGGER' else 'bookmark_B'
-                config[button] = stations[current_station_index]
-                save_config(config)
-                print(f"Station {stations[current_station_index]} gekoppeld aan {button}.")
+class GamepadController:
+    """Handles gamepad input and controls the radio."""
+
+    def __init__(self, player: RadioPlayer, volume: VolumeController, bookmarks: BookmarkManager):
+        """
+        Initialize GamepadController.
+
+        Args:
+            player: RadioPlayer instance
+            volume: VolumeController instance
+            bookmarks: BookmarkManager instance
+        """
+        self.player = player
+        self.volume = volume
+        self.bookmarks = bookmarks
+
+        self.last_event_time: Dict[str, float] = {
+            const.BUTTON_SELECT: 0,
+            const.BUTTON_START: 0,
+            const.BUTTON_A: 0,
+            const.BUTTON_B: 0,
+            const.JOYSTICK_X: 0,
+            const.JOYSTICK_Y: 0
+        }
+        self.select_pressed_time = 0
+
+    def _is_debounced(self, event_code: str) -> bool:
+        """
+        Check if enough time has passed since last event.
+
+        Args:
+            event_code: Event code to check
+
+        Returns:
+            True if debounced (enough time passed), False otherwise
+        """
+        current_time = time.time()
+        if current_time - self.last_event_time.get(event_code, 0) > const.DEBOUNCE_TIME:
+            self.last_event_time[event_code] = current_time
+            return True
+        return False
+
+    def _handle_button_select(self):
+        """Handle Select button press."""
+        self.select_pressed_time = time.time()
+        logger.debug("Select button pressed, waiting for A or B...")
+
+    def _handle_button_a(self):
+        """Handle A button press."""
+        current_time = time.time()
+
+        # Check if this is a bookmark save operation (Select + A)
+        if self.select_pressed_time > 0 and current_time - self.select_pressed_time < const.BOOKMARK_SAVE_WINDOW:
+            station = self.player.get_current_station()
+            if station:
+                self.bookmarks.set_bookmark('bookmark_A', station)
+                self.player.speak(f"Bookmark A set to {station}")
+        else:
+            # Play bookmarked station
+            station = self.bookmarks.get_bookmark('bookmark_A')
+            if station and self.player.station_manager.is_valid_station(station):
+                self.player.play_station_by_name(station)
             else:
-                station_to_play = config['bookmark_A'] if event.code == 'BTN_TRIGGER' else config['bookmark_B']
-                if station_to_play is None or station_to_play not in radio_stations:
-                    current_station_index = 0
-                    start_stream(stations[current_station_index])
-                else:
-                    start_stream(station_to_play)
-                    current_station_index = stations.index(station_to_play)
-            last_event_time[event.code] = current_time
-            select_pressed_time = 0
-        elif event.code == 'BTN_BASE4':
-            if current_process is None:
-                start_stream(stations[current_station_index])
+                logger.info("Bookmark A not set or invalid, playing first station")
+                self.player.play_station_by_name(self.player.stations[0])
+
+        self.select_pressed_time = 0
+
+    def _handle_button_b(self):
+        """Handle B button press."""
+        current_time = time.time()
+
+        # Check if this is a bookmark save operation (Select + B)
+        if self.select_pressed_time > 0 and current_time - self.select_pressed_time < const.BOOKMARK_SAVE_WINDOW:
+            station = self.player.get_current_station()
+            if station:
+                self.bookmarks.set_bookmark('bookmark_B', station)
+                self.player.speak(f"Bookmark B set to {station}")
+        else:
+            # Play bookmarked station
+            station = self.bookmarks.get_bookmark('bookmark_B')
+            if station and self.player.station_manager.is_valid_station(station):
+                self.player.play_station_by_name(station)
             else:
-                stop_stream()
-            last_event_time['BTN_BASE4'] = current_time
+                logger.info("Bookmark B not set or invalid, playing first station")
+                self.player.play_station_by_name(self.player.stations[0])
 
-    elif event.ev_type == 'Absolute':
-        if event.code == 'ABS_X' and current_time - last_event_time['ABS_X'] > DEBOUNCE_TIME:
-            if event.state < 100:
-                current_station_index = (current_station_index - 1) % len(stations)
-                start_stream(stations[current_station_index])
-            elif event.state > 150:
-                current_station_index = (current_station_index + 1) % len(stations)
-                start_stream(stations[current_station_index])
-            last_event_time['ABS_X'] = current_time
+        self.select_pressed_time = 0
 
-        elif event.code == 'ABS_Y' and current_time - last_event_time['ABS_Y'] > DEBOUNCE_TIME:
-            if event.state < 100:
-                adjust_volume("up")
-            elif event.state > 150:
-                adjust_volume("down")
-            last_event_time['ABS_Y'] = current_time
+    def _handle_button_start(self):
+        """Handle Start button press (play/pause)."""
+        if self.player.is_playing():
+            self.player.stop_stream()
+        else:
+            station = self.player.get_current_station()
+            if station:
+                self.player.start_stream(station)
+            else:
+                self.player.start_stream(self.player.stations[0])
 
-config = load_config()
-start_stream(config.get('bookmark_A', stations[0]))
+    def process_event(self, event):
+        """
+        Process a gamepad event.
 
-while not network_connected:
-    if wait_for_network():
-        network_connected = True
+        Args:
+            event: Input event from gamepad
+        """
+        try:
+            # Button events
+            if event.ev_type == 'Key' and event.state == 1:
+                if not self._is_debounced(event.code):
+                    return
+
+                if event.code == const.BUTTON_SELECT:
+                    self._handle_button_select()
+                elif event.code == const.BUTTON_A:
+                    self._handle_button_a()
+                elif event.code == const.BUTTON_B:
+                    self._handle_button_b()
+                elif event.code == const.BUTTON_START:
+                    self._handle_button_start()
+
+            # Joystick events
+            elif event.ev_type == 'Absolute':
+                if event.code == const.JOYSTICK_X and self._is_debounced(const.JOYSTICK_X):
+                    if event.state < const.JOYSTICK_MIN_THRESHOLD:
+                        self.player.previous_station()
+                    elif event.state > const.JOYSTICK_MAX_THRESHOLD:
+                        self.player.next_station()
+
+                elif event.code == const.JOYSTICK_Y and self._is_debounced(const.JOYSTICK_Y):
+                    if event.state < const.JOYSTICK_MIN_THRESHOLD:
+                        self.volume.adjust("up")
+                    elif event.state > const.JOYSTICK_MAX_THRESHOLD:
+                        self.volume.adjust("down")
+
+        except Exception as e:
+            logger.error(f"Error processing event: {e}")
+
+
+def wait_for_network(timeout: int = const.NETWORK_TIMEOUT) -> bool:
+    """
+    Wait for network connectivity.
+
+    Args:
+        timeout: Maximum seconds to wait
+
+    Returns:
+        True if network is available, False otherwise
+    """
+    logger.info("Waiting for network connectivity...")
+    start_time = time.time()
+
+    while time.time() - start_time < timeout:
+        try:
+            requests.get(const.NETWORK_CHECK_URL, timeout=const.NETWORK_REQUEST_TIMEOUT)
+            logger.info("Network connectivity established")
+            return True
+        except requests.ConnectionError:
+            logger.debug("Network not available, retrying...")
+            time.sleep(const.NETWORK_CHECK_INTERVAL)
+        except Exception as e:
+            logger.error(f"Network check error: {e}")
+            time.sleep(const.NETWORK_CHECK_INTERVAL)
+
+    logger.warning(f"Network not available after {timeout} seconds")
+    return False
+
+
+def setup_signal_handlers(player: RadioPlayer):
+    """
+    Setup signal handlers for graceful shutdown.
+
+    Args:
+        player: RadioPlayer instance to cleanup on shutdown
+    """
+    def signal_handler(signum, frame):
+        logger.info("Shutdown signal received, cleaning up...")
+        player.stop_stream()
+        exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+
+def main():
+    """Main entry point."""
+    logger.info("Pi Radio starting...")
+
+    # Get base directory
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Wait for network first
+    network_connected = False
+    while not network_connected:
+        if wait_for_network():
+            network_connected = True
+        else:
+            logger.warning("Retrying network connection...")
+
+    # Initialize components
+    try:
+        station_manager = StationManager(base_dir)
+        player = RadioPlayer(station_manager)
+        volume = VolumeController()
+        bookmarks = BookmarkManager(os.path.join(base_dir, const.CONFIG_FILE))
+        controller = GamepadController(player, volume, bookmarks)
+    except Exception as e:
+        logger.error(f"Failed to initialize components: {e}")
+        return
+
+    # Setup signal handlers
+    setup_signal_handlers(player)
+
+    # Start with bookmarked station or first station
+    initial_station = bookmarks.get_bookmark('bookmark_A')
+    if initial_station and station_manager.is_valid_station(initial_station):
+        player.play_station_by_name(initial_station)
     else:
-        print("Trying to reconnect to the network...")
+        if player.stations:
+            player.start_stream(player.stations[0])
+        else:
+            logger.error("No stations available to play!")
+            return
 
-while True:
-    events = get_gamepad()
-    for event in events:
-        process_event(event)
+    # Main event loop
+    logger.info("Pi Radio ready, listening for gamepad input...")
+    try:
+        while True:
+            events = get_gamepad()
+            for event in events:
+                controller.process_event(event)
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received")
+    except Exception as e:
+        logger.error(f"Fatal error in main loop: {e}")
+    finally:
+        player.stop_stream()
+        logger.info("Pi Radio stopped")
+
+
+if __name__ == "__main__":
+    main()
