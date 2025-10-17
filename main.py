@@ -477,6 +477,7 @@ class GamepadController:
         }
         self.select_pressed_time = 0
         self.select_is_pressed = False  # Track if Select button is currently held down
+        self.last_admin_command_time = 0  # Prevent rapid-fire admin commands
 
     def _is_debounced(self, event_code: str) -> bool:
         """
@@ -493,6 +494,21 @@ class GamepadController:
             self.last_event_time[event_code] = current_time
             return True
         return False
+
+    def _can_execute_admin_command(self) -> bool:
+        """
+        Check if enough time has passed since last admin command.
+
+        Returns:
+            True if admin command can be executed, False otherwise
+        """
+        current_time = time.time()
+        if current_time - self.last_admin_command_time > const.ADMIN_COMMAND_COOLDOWN:
+            self.last_admin_command_time = current_time
+            return True
+        else:
+            logger.debug(f"Admin command on cooldown (last: {current_time - self.last_admin_command_time:.1f}s ago)")
+            return False
 
     def _handle_button_a(self):
         """Handle A button press."""
@@ -586,6 +602,10 @@ class GamepadController:
                 if event.code == const.JOYSTICK_X and self._is_debounced(const.JOYSTICK_X):
                     # Check if Select is held (admin mode)
                     if self.select_is_pressed and const.ADMIN_MODE_ENABLED:
+                        # Check cooldown before executing admin command
+                        if not self._can_execute_admin_command():
+                            return
+
                         logger.info(f"Admin mode active - Joystick X state: {event.state}")
                         # Admin mode: Left = restart app, Right = speak IP
                         if event.state < const.JOYSTICK_MIN_THRESHOLD:
@@ -604,6 +624,10 @@ class GamepadController:
                 elif event.code == const.JOYSTICK_Y and self._is_debounced(const.JOYSTICK_Y):
                     # Check if Select is held (admin mode)
                     if self.select_is_pressed and const.ADMIN_MODE_ENABLED:
+                        # Check cooldown before executing admin command
+                        if not self._can_execute_admin_command():
+                            return
+
                         logger.info(f"Admin mode active - Joystick Y state: {event.state}")
                         # Admin mode: Up = update, Down = reboot system
                         if event.state < const.JOYSTICK_MIN_THRESHOLD:

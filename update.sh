@@ -47,6 +47,7 @@ fi
 echo ""
 echo "Running install.sh to update dependencies..."
 
+# Run install.sh (fully automatic, no prompts)
 bash install.sh
 
 if [ $? -ne 0 ]; then

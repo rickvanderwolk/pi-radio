@@ -44,6 +44,7 @@ SERVICE_NAME = 'pi-radio'
 
 # Admin mode settings
 ADMIN_MODE_ENABLED = True  # Set to False to disable admin commands via gamepad
+ADMIN_COMMAND_COOLDOWN = 3.0  # Seconds between admin commands to prevent accidental multiple triggers
 
 # Logging
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

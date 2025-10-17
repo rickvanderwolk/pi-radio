@@ -87,57 +87,48 @@ fi
 echo -e "${GREEN}[5/6]${NC} Setting up start script..."
 chmod +x "${PROJECT_DIR}/start_radio.sh"
 
-# Ask about systemd service installation
+# Setup systemd service (always)
 echo ""
 echo -e "${GREEN}[6/6]${NC} Systemd service setup"
-echo "Would you like to install Pi-Radio as a systemd service?"
-echo "This will make it start automatically on boot."
-read -p "Install service? (y/n): " -n 1 -r
-echo ""
+echo "Installing systemd service..."
 
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "Installing systemd service..."
+# Create service file from template
+SERVICE_FILE="/tmp/pi-radio.service"
+sed "s|%USER%|${CURRENT_USER}|g" "${PROJECT_DIR}/pi-radio.service" | \
+sed "s|%PROJECT_DIR%|${PROJECT_DIR}|g" > "${SERVICE_FILE}"
 
-    # Create service file from template
-    SERVICE_FILE="/tmp/pi-radio.service"
-    sed "s|%USER%|${CURRENT_USER}|g" "${PROJECT_DIR}/pi-radio.service" | \
-    sed "s|%PROJECT_DIR%|${PROJECT_DIR}|g" > "${SERVICE_FILE}"
+# Install service
+sudo cp "${SERVICE_FILE}" /etc/systemd/system/pi-radio.service
+sudo systemctl daemon-reload
+sudo systemctl enable pi-radio.service
 
-    # Install service
-    sudo cp "${SERVICE_FILE}" /etc/systemd/system/pi-radio.service
-    sudo systemctl daemon-reload
-    sudo systemctl enable pi-radio.service
+rm "${SERVICE_FILE}"
 
-    rm "${SERVICE_FILE}"
+echo -e "${GREEN}Service installed successfully!${NC}"
 
-    echo -e "${GREEN}Service installed successfully!${NC}"
-    echo ""
-    echo "Service commands:"
-    echo "  Start:   sudo systemctl start pi-radio"
-    echo "  Stop:    sudo systemctl stop pi-radio"
-    echo "  Status:  sudo systemctl status pi-radio"
-    echo "  Logs:    journalctl -u pi-radio -f"
-    echo ""
-
-    read -p "Start service now? (y/n): " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        sudo systemctl start pi-radio
-        echo -e "${GREEN}Service started!${NC}"
-    fi
+# Check if service is already running
+if systemctl is-active --quiet pi-radio; then
+    echo "Service is already running, restart will be handled by update script."
 else
-    echo "Skipping service installation."
-    echo "You can run manually with: ${PROJECT_DIR}/start_radio.sh"
+    # Start service automatically
+    echo "Starting service..."
+    sudo systemctl start pi-radio
+    echo -e "${GREEN}Service started!${NC}"
 fi
+
+echo ""
+echo "Service commands:"
+echo "  Status:  sudo systemctl status pi-radio"
+echo "  Stop:    sudo systemctl stop pi-radio"
+echo "  Restart: sudo systemctl restart pi-radio"
+echo "  Logs:    journalctl -u pi-radio -f"
+echo ""
 
 echo ""
 echo -e "${GREEN}Installation complete!${NC}"
 echo ""
 echo "Next steps:"
 echo "  1. Connect your gamepad"
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "  2. Run: ${PROJECT_DIR}/start_radio.sh"
-else
-    echo "  2. Check status: sudo systemctl status pi-radio"
-fi
+echo "  2. Check status: sudo systemctl status pi-radio"
+echo "  3. View logs: journalctl -u pi-radio -f"
 echo ""
