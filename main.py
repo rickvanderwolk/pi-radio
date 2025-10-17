@@ -221,16 +221,18 @@ class VolumeController:
 class SystemManager:
     """Manages system-level operations like network info, updates, and reboots."""
 
-    def __init__(self, base_dir: str, tts_callback):
+    def __init__(self, base_dir: str, tts_callback, player):
         """
         Initialize SystemManager.
 
         Args:
             base_dir: Base directory of the project
             tts_callback: Function to call for text-to-speech
+            player: RadioPlayer instance for stopping/starting streams
         """
         self.base_dir = base_dir
         self.speak = tts_callback
+        self.player = player
         self.update_script = os.path.join(base_dir, const.UPDATE_SCRIPT)
 
     def get_ip_address(self) -> Optional[str]:
@@ -270,6 +272,15 @@ class SystemManager:
 
     def speak_network_info(self):
         """Speak the IP address and hostname via TTS."""
+        # Remember if we were playing
+        was_playing = self.player.is_playing()
+        current_station = self.player.get_current_station()
+
+        # Stop radio for clear TTS
+        logger.info("Stopping radio for network info")
+        self.player.stop_stream()
+
+        # Get and speak network info
         ip = self.get_ip_address()
         hostname = self.get_hostname()
 
@@ -282,8 +293,17 @@ class SystemManager:
             logger.warning(message)
             self.speak(message)
 
+        # Restart radio if it was playing
+        if was_playing and current_station:
+            logger.info(f"Restarting radio: {current_station}")
+            self.player.start_stream(current_station)
+
     def run_update(self):
         """Run the update script."""
+        # Stop radio first
+        logger.info("Stopping radio for update")
+        self.player.stop_stream()
+
         if not os.path.exists(self.update_script):
             message = "Update script not found"
             logger.error(message)
@@ -302,7 +322,8 @@ class SystemManager:
                 stderr=subprocess.PIPE
             )
 
-            logger.info("Update script started")
+            logger.info("Update script started - service will restart automatically")
+            # Note: Don't restart radio here, the service will restart itself
         except Exception as e:
             message = f"Failed to start update: {e}"
             logger.error(message)
@@ -310,9 +331,16 @@ class SystemManager:
 
     def restart_app(self):
         """Restart the pi-radio application service."""
+        # Stop radio first
+        logger.info("Stopping radio for app restart")
+        self.player.stop_stream()
+
         try:
             self.speak("Restarting application")
             logger.info("Restarting application service...")
+
+            # Give TTS time to complete
+            time.sleep(1)
 
             # Try systemctl restart
             result = subprocess.run(
@@ -339,6 +367,10 @@ class SystemManager:
 
     def reboot_system(self):
         """Reboot the entire system."""
+        # Stop radio first
+        logger.info("Stopping radio for system reboot")
+        self.player.stop_stream()
+
         try:
             self.speak("Rebooting system")
             logger.warning("System reboot initiated via gamepad!")
@@ -657,7 +689,7 @@ def main():
         player = RadioPlayer(station_manager)
         volume = VolumeController()
         bookmarks = BookmarkManager(os.path.join(base_dir, const.CONFIG_FILE))
-        system_manager = SystemManager(base_dir, player.speak)
+        system_manager = SystemManager(base_dir, player.speak, player)
         controller = GamepadController(player, volume, bookmarks, system_manager)
     except Exception as e:
         logger.error(f"Failed to initialize components: {e}")
