@@ -85,22 +85,21 @@ class StationManager:
         return normalized
 
     def _load_stations(self):
-        """Load and merge default and custom stations."""
-        # Load default stations
-        default_data = self._load_json_file(self.default_stations_file)
-        default_stations = self._normalize_stations(default_data)
-
-        # Load custom stations
+        """Load custom stations if available, otherwise fall back to default stations."""
+        # Load custom stations first
         custom_data = self._load_json_file(self.custom_stations_file)
         custom_stations = self._normalize_stations(custom_data)
 
-        # Merge: start with defaults, override with custom
-        self._stations = {**default_stations, **custom_stations}
-
+        # If custom stations exist, use only those
         if custom_stations:
-            overridden = set(default_stations.keys()) & set(custom_stations.keys())
-            if overridden:
-                logger.info(f"Custom stations override {len(overridden)} default station(s): {', '.join(overridden)}")
+            self._stations = custom_stations
+            logger.info(f"Using custom stations only (default stations ignored)")
+        else:
+            # Fall back to default stations if no custom stations
+            default_data = self._load_json_file(self.default_stations_file)
+            default_stations = self._normalize_stations(default_data)
+            self._stations = default_stations
+            logger.info(f"No custom stations found, using default stations")
 
         logger.info(f"Total stations loaded: {len(self._stations)}")
 
