@@ -3,7 +3,7 @@ Configuration constants for pi-radio.
 """
 
 # Version
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 # Debounce timing
 DEBOUNCE_TIME = 0.3  # seconds
