@@ -61,7 +61,7 @@ sudo systemctl restart pi-radio
 journalctl -u pi-radio -f
 ```
 
-**Tip:** You can also restart the service using your gamepad. See [Gamepad Controls - Admin Commands](#admin-commands) for more information.
+**Tip:** You can also restart the service using your gamepad: hold **Select** and move **Joystick Left**.
 
 ## Gamepad Controls
 
@@ -196,10 +196,14 @@ Most online radio stations have direct stream URLs. You can often find them:
 
 To update Pi-Radio to the latest version:
 
+**Via command line:**
 ```bash
 cd pi-radio
 bash update.sh
 ```
+
+**Via gamepad:**
+Hold **Select** and move **Joystick Up**
 
 The update script will:
 - Automatically backup and restore your `custom_stations.json` (if it exists)
