@@ -8,6 +8,8 @@ import subprocess
 import json
 import logging
 import shutil
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Optional, Dict
 from inputs import get_gamepad
 import pyttsx3
@@ -677,6 +679,77 @@ class GamepadController:
             logger.error(f"Error processing event: {e}")
 
 
+class HttpApi:
+    """Simple HTTP API for controlling the radio."""
+
+    def __init__(self, player: RadioPlayer):
+        self.player = player
+        self.server = None
+
+    def start(self):
+        handler = self._make_handler(self.player)
+        self.server = HTTPServer(('0.0.0.0', const.HTTP_API_PORT), handler)
+        thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        thread.start()
+        logger.info(f"HTTP API listening on port {const.HTTP_API_PORT}")
+
+    def stop(self):
+        if self.server:
+            self.server.shutdown()
+
+    @staticmethod
+    def _make_handler(player: RadioPlayer):
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                path = self.path.rstrip('/')
+                if path == '/toggle':
+                    if player.is_playing():
+                        player.stop_stream()
+                        self._respond(200, {'status': 'stopped'})
+                    else:
+                        station = player.get_current_station() or (player.stations[0] if player.stations else None)
+                        if station:
+                            player.start_stream(station)
+                            self._respond(200, {'status': 'playing', 'station': station})
+                        else:
+                            self._respond(500, {'error': 'no stations available'})
+                elif path == '/play':
+                    station = player.get_current_station() or (player.stations[0] if player.stations else None)
+                    if station:
+                        player.start_stream(station)
+                        self._respond(200, {'status': 'playing', 'station': station})
+                    else:
+                        self._respond(500, {'error': 'no stations available'})
+                elif path == '/stop':
+                    player.stop_stream()
+                    self._respond(200, {'status': 'stopped'})
+                elif path == '/next':
+                    player.next_station()
+                    self._respond(200, {'status': 'playing', 'station': player.get_current_station()})
+                elif path == '/prev':
+                    player.previous_station()
+                    self._respond(200, {'status': 'playing', 'station': player.get_current_station()})
+                elif path == '/status':
+                    self._respond(200, {
+                        'playing': player.is_playing(),
+                        'station': player.get_current_station(),
+                        'stations': player.stations,
+                    })
+                else:
+                    self._respond(404, {'error': 'not found', 'endpoints': ['/toggle', '/play', '/stop', '/next', '/prev', '/status']})
+
+            def _respond(self, code, data):
+                self.send_response(code)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode())
+
+            def log_message(self, format, *args):
+                logger.debug(f"HTTP: {args[0]}")
+
+        return Handler
+
+
 def wait_for_network(timeout: int = const.NETWORK_TIMEOUT) -> bool:
     """
     Wait for network connectivity.
@@ -748,6 +821,10 @@ def main():
     except Exception as e:
         logger.error(f"Failed to initialize components: {e}")
         return
+
+    # Start HTTP API
+    http_api = HttpApi(player)
+    http_api.start()
 
     # Setup signal handlers
     setup_signal_handlers(player)

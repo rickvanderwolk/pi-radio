@@ -42,6 +42,9 @@ DEFAULT_STATIONS_FILE = 'default_stations.json'
 CUSTOM_STATIONS_FILE = 'custom_stations.json'
 UPDATE_SCRIPT = 'update.sh'
 
+# HTTP API settings
+HTTP_API_PORT = 8080
+
 # Service settings
 SERVICE_NAME = 'pi-radio'
 
