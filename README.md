@@ -141,6 +141,8 @@ You can customize certain control behaviors by editing `config.json`:
 
 ## HTTP API
 
+> **⚠️ Beta:** The HTTP API is still experimental. Endpoints, paths and response formats may change in future versions, so keep that in mind if you build something on top of it.
+
 In addition to gamepad control, Pi-Radio exposes a small HTTP API for controlling playback over the network (for example from a phone, a home-automation system, or a `curl` script). The API starts automatically with the service and listens on **port 8080** on all interfaces.
 
 ### Endpoints
