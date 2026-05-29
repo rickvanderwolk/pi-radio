@@ -10,6 +10,7 @@ A Python (Raspberry Pi) project to control online radio streaming with a gamepad
 - [Getting Started](#getting-started)
 - [Managing the Service](#managing-the-service)
 - [Gamepad Controls](#gamepad-controls)
+- [HTTP API](#http-api)
 - [Custom Radio Stations](#custom-radio-stations)
 - [Update](#update)
 
@@ -137,6 +138,40 @@ You can customize certain control behaviors by editing `config.json`:
 - `bookmark_A` / `bookmark_B`: Automatically managed by the system when you save bookmarks
 
 **Note:** Your `config.json` is preserved during updates, so you won't lose your settings or bookmarks.
+
+## HTTP API
+
+In addition to gamepad control, Pi-Radio exposes a small HTTP API for controlling playback over the network (for example from a phone, a home-automation system, or a `curl` script). The API starts automatically with the service and listens on **port 8080** on all interfaces.
+
+### Endpoints
+
+All endpoints respond with JSON.
+
+| Method | Endpoint | Action | Example response |
+|--------|----------|--------|------------------|
+| GET | `/toggle` | Toggle play/pause of the current station | `{"status": "playing", "station": "..."}` or `{"status": "stopped"}` |
+| GET | `/play` | Start playing the current station | `{"status": "playing", "station": "..."}` |
+| GET | `/stop` | Stop playback | `{"status": "stopped"}` |
+| GET | `/next` | Switch to the next station | `{"status": "playing", "station": "..."}` |
+| GET | `/prev` | Switch to the previous station | `{"status": "playing", "station": "..."}` |
+| GET | `/status` | Get current playback state and station list | `{"playing": true, "station": "...", "stations": [...]}` |
+
+An unknown path returns `404` with the list of available endpoints.
+
+### Examples
+
+```bash
+# Toggle play/pause
+curl http://<your-pi-ip>:8080/toggle
+
+# Skip to the next station
+curl http://<your-pi-ip>:8080/next
+
+# Check what's playing
+curl http://<your-pi-ip>:8080/status
+```
+
+**Note:** The API currently covers playback and station switching only. Volume, bookmarks (A/B) and admin commands (update/restart/reboot/network info) are available via the gamepad only. The port (`8080`) is defined in `constants.py` (`HTTP_API_PORT`).
 
 ## Custom Radio Stations
 
