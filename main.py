@@ -10,6 +10,7 @@ import logging
 import shutil
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import unquote
 from typing import Optional, Dict
 from inputs import get_gamepad
 import pyttsx3
@@ -218,6 +219,38 @@ class VolumeController:
             logger.info(f"Volume adjusted: {direction}")
         except Exception as e:
             logger.error(f"Error adjusting volume: {e}")
+
+    def set_level(self, level: int) -> bool:
+        """
+        Set system volume to an absolute level.
+
+        Args:
+            level: Desired volume as a percentage. Clamped to 0-100.
+
+        Returns:
+            True if the volume was set, False otherwise
+        """
+        if self.amixer_path is None:
+            logger.warning("Volume control not available")
+            return False
+
+        # Clamp to a valid range
+        level = max(0, min(100, level))
+
+        try:
+            # Unmute first
+            subprocess.call([self.amixer_path, 'set', 'Master', 'unmute'],
+                          stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL)
+
+            subprocess.call([self.amixer_path, 'set', 'Master', f'{level}%'],
+                          stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL)
+            logger.info(f"Volume set to {level}%")
+            return True
+        except Exception as e:
+            logger.error(f"Error setting volume: {e}")
+            return False
 
 
 class SystemManager:
@@ -682,12 +715,13 @@ class GamepadController:
 class HttpApi:
     """Simple HTTP API for controlling the radio."""
 
-    def __init__(self, player: RadioPlayer):
+    def __init__(self, player: RadioPlayer, volume: 'VolumeController'):
         self.player = player
+        self.volume = volume
         self.server = None
 
     def start(self):
-        handler = self._make_handler(self.player)
+        handler = self._make_handler(self.player, self.volume)
         self.server = HTTPServer(('0.0.0.0', const.HTTP_API_PORT), handler)
         thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         thread.start()
@@ -698,7 +732,7 @@ class HttpApi:
             self.server.shutdown()
 
     @staticmethod
-    def _make_handler(player: RadioPlayer):
+    def _make_handler(player: RadioPlayer, volume: 'VolumeController'):
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
                 path = self.path.rstrip('/')
@@ -713,6 +747,13 @@ class HttpApi:
                             self._respond(200, {'status': 'playing', 'station': station})
                         else:
                             self._respond(500, {'error': 'no stations available'})
+                elif path.startswith('/play/'):
+                    station = unquote(path[len('/play/'):])
+                    if player.station_manager.is_valid_station(station):
+                        player.play_station_by_name(station)
+                        self._respond(200, {'status': 'playing', 'station': station})
+                    else:
+                        self._respond(404, {'error': 'station not found', 'station': station})
                 elif path == '/play':
                     station = player.get_current_station() or (player.stations[0] if player.stations else None)
                     if station:
@@ -720,6 +761,24 @@ class HttpApi:
                         self._respond(200, {'status': 'playing', 'station': station})
                     else:
                         self._respond(500, {'error': 'no stations available'})
+                elif path == '/volume/up':
+                    volume.adjust('up')
+                    self._respond(200, {'status': 'ok', 'volume': 'up'})
+                elif path == '/volume/down':
+                    volume.adjust('down')
+                    self._respond(200, {'status': 'ok', 'volume': 'down'})
+                elif path.startswith('/volume/'):
+                    raw = path[len('/volume/'):]
+                    try:
+                        level = int(raw)
+                    except ValueError:
+                        self._respond(400, {'error': 'volume must be an integer 0-100', 'value': raw})
+                    else:
+                        clamped = max(0, min(100, level))
+                        if volume.set_level(clamped):
+                            self._respond(200, {'status': 'ok', 'volume': clamped})
+                        else:
+                            self._respond(500, {'error': 'volume control not available'})
                 elif path == '/stop':
                     player.stop_stream()
                     self._respond(200, {'status': 'stopped'})
@@ -736,7 +795,7 @@ class HttpApi:
                         'stations': player.stations,
                     })
                 else:
-                    self._respond(404, {'error': 'not found', 'endpoints': ['/toggle', '/play', '/stop', '/next', '/prev', '/status']})
+                    self._respond(404, {'error': 'not found', 'endpoints': ['/toggle', '/play', '/play/<station>', '/stop', '/next', '/prev', '/volume/up', '/volume/down', '/volume/<0-100>', '/status']})
 
             def _respond(self, code, data):
                 self.send_response(code)
@@ -823,7 +882,7 @@ def main():
         return
 
     # Start HTTP API
-    http_api = HttpApi(player)
+    http_api = HttpApi(player, volume)
     http_api.start()
 
     # Setup signal handlers

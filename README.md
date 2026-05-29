@@ -151,12 +151,16 @@ All endpoints respond with JSON.
 |--------|----------|--------|------------------|
 | GET | `/toggle` | Toggle play/pause of the current station | `{"status": "playing", "station": "..."}` or `{"status": "stopped"}` |
 | GET | `/play` | Start playing the current station | `{"status": "playing", "station": "..."}` |
+| GET | `/play/<station>` | Play a specific station by name | `{"status": "playing", "station": "..."}` |
 | GET | `/stop` | Stop playback | `{"status": "stopped"}` |
 | GET | `/next` | Switch to the next station | `{"status": "playing", "station": "..."}` |
 | GET | `/prev` | Switch to the previous station | `{"status": "playing", "station": "..."}` |
+| GET | `/volume/up` | Increase volume by one step | `{"status": "ok", "volume": "up"}` |
+| GET | `/volume/down` | Decrease volume by one step | `{"status": "ok", "volume": "down"}` |
+| GET | `/volume/<0-100>` | Set volume to an absolute level (clamped to 0-100) | `{"status": "ok", "volume": 50}` |
 | GET | `/status` | Get current playback state and station list | `{"playing": true, "station": "...", "stations": [...]}` |
 
-An unknown path returns `404` with the list of available endpoints.
+Station names for `/play/<station>` are the keys from `/status` (e.g. `radio_1`). An unknown station returns `404`, and a non-numeric volume returns `400`. Any unknown path returns `404` with the list of available endpoints.
 
 ### Examples
 
@@ -167,11 +171,17 @@ curl http://<your-pi-ip>:8080/toggle
 # Skip to the next station
 curl http://<your-pi-ip>:8080/next
 
+# Play a specific station
+curl http://<your-pi-ip>:8080/play/radio_1
+
+# Set volume to 40%
+curl http://<your-pi-ip>:8080/volume/40
+
 # Check what's playing
 curl http://<your-pi-ip>:8080/status
 ```
 
-**Note:** The API currently covers playback and station switching only. Volume, bookmarks (A/B) and admin commands (update/restart/reboot/network info) are available via the gamepad only. The port (`8080`) is defined in `constants.py` (`HTTP_API_PORT`).
+**Note:** The API covers playback, station switching and volume. Bookmarks (A/B) and admin commands (update/restart/reboot/network info) are available via the gamepad only. The port (`8080`) is defined in `constants.py` (`HTTP_API_PORT`).
 
 ## Custom Radio Stations
 
