@@ -167,10 +167,10 @@ You can add your own radio stations without modifying the default station list.
 
 - `default_stations.json` - Contains the default radio stations (updated with each git pull)
 - `custom_stations.json` - Your personal stations (**never modified** by install/update scripts)
-- Station merging happens **only in memory** at runtime:
-  - Both files are loaded when the app starts
-  - Custom stations are combined with default stations
-  - If a custom station has the same name as a default station, the custom one takes priority
+- Station loading at runtime:
+  - If `custom_stations.json` exists and contains stations, **only** those are used - the default stations are ignored entirely (no merging)
+  - If there is no `custom_stations.json` (or it is empty), the default stations are used
+  - So if you want to keep some default stations alongside your own, copy them into `custom_stations.json`
 - During updates, `custom_stations.json` is automatically backed up and restored unchanged
 
 ### Station Format
