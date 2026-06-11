@@ -104,6 +104,7 @@ class RadioPlayer:
             'ffplay',
             '-autoexit',
             '-nodisp',
+            '-loglevel', 'quiet',
             '-rtbufsize', const.FFPLAY_BUFFER_SIZE,
             '-max_delay', const.FFPLAY_MAX_DELAY,
             stream_url
@@ -112,8 +113,8 @@ class RadioPlayer:
         try:
             self.current_process = subprocess.Popen(
                 command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
             )
             logger.info(f"Stream started successfully: {station_name}")
         except Exception as e:
