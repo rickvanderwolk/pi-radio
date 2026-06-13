@@ -21,8 +21,12 @@ BOOKMARK_SAVE_WINDOW = 10  # seconds - window to save bookmark after Select pres
 VOLUME_STEP = '5%'  # Volume adjustment step for amixer
 
 # FFplay settings
-FFPLAY_BUFFER_SIZE = '1500M'  # rtbufsize parameter
+FFPLAY_BUFFER_SIZE = '32M'  # rtbufsize parameter (max RAM for input buffering; large
+                            # values can OOM/freeze a Pi if playback stalls momentarily)
 FFPLAY_MAX_DELAY = '5000000'  # max_delay parameter in microseconds
+
+# Watchdog: how often to check whether the stream process is still alive
+WATCHDOG_INTERVAL = 3  # seconds between liveness checks
 
 # Joystick thresholds
 JOYSTICK_MIN_THRESHOLD = 100  # Below this = left/up

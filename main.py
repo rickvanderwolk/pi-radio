@@ -43,7 +43,14 @@ class RadioPlayer:
         self.current_station_index = 0
         self.current_process: Optional[subprocess.Popen] = None
         self.tts_engine: Optional[pyttsx3.Engine] = None
+        # Protects current_process / _intended_station against the watchdog,
+        # gamepad and HTTP threads touching them at the same time.
+        self._lock = threading.Lock()
+        # Station we are meant to be playing; None when intentionally stopped.
+        # The watchdog uses this to know whether an exited process should be revived.
+        self._intended_station: Optional[str] = None
         self._init_tts()
+        self._start_watchdog()
 
     def _init_tts(self):
         """Initialize text-to-speech engine."""
@@ -88,16 +95,20 @@ class RadioPlayer:
             station_name = self.stations[0]
             stream_url = self.station_manager.get_station_url(station_name)
 
-        # Stop any current stream
-        self.stop_stream()
-
         # Check if ffplay is available
         if shutil.which('ffplay') is None:
             logger.error("ffplay not found! Install ffmpeg to play audio.")
             return
 
-        # Start new stream
-        self.speak(f"Starting stream of {station_name}")
+        with self._lock:
+            # Mark intent first so the watchdog never races us into a restart.
+            self._intended_station = station_name
+            self._stop_process()
+            self.speak(f"Starting stream of {station_name}")
+            self._start_process(station_name, stream_url)
+
+    def _start_process(self, station_name: str, stream_url: str):
+        """Launch the ffplay process. Caller must hold self._lock."""
         logger.info(f"Starting stream: {station_name} -> {stream_url}")
 
         command = [
@@ -121,8 +132,8 @@ class RadioPlayer:
             logger.error(f"Failed to start stream: {e}")
             self.current_process = None
 
-    def stop_stream(self):
-        """Stop the current stream if playing."""
+    def _stop_process(self):
+        """Terminate the ffplay process without changing intent. Caller must hold self._lock."""
         if self.current_process is not None:
             try:
                 self.current_process.terminate()
@@ -135,6 +146,46 @@ class RadioPlayer:
                 logger.error(f"Error stopping stream: {e}")
             finally:
                 self.current_process = None
+
+    def stop_stream(self):
+        """Stop the current stream if playing."""
+        with self._lock:
+            self._intended_station = None
+            self._stop_process()
+
+    def _start_watchdog(self):
+        """Start a background thread that revives the stream if ffplay dies."""
+        thread = threading.Thread(target=self._watchdog_loop, daemon=True)
+        thread.start()
+        logger.info("Stream watchdog started")
+
+    def _watchdog_loop(self):
+        """Periodically restart the stream if ffplay exited while it should be playing.
+
+        A live radio stream can hit EOF on a network hiccup/redirect, or ffplay can
+        be killed (e.g. OOM), in which case it exits and audio goes silent with no
+        recovery. We detect that here and relaunch the station the user last chose.
+        """
+        while True:
+            time.sleep(const.WATCHDOG_INTERVAL)
+            with self._lock:
+                station = self._intended_station
+                proc = self.current_process
+                # Nothing to do if we're stopped or the process is still running.
+                if station is None or proc is None or proc.poll() is None:
+                    continue
+
+                logger.warning(
+                    f"Stream '{station}' exited unexpectedly (code {proc.returncode}), restarting"
+                )
+                self.current_process = None
+                stream_url = self.station_manager.get_station_url(station)
+                if stream_url is None:
+                    logger.error(f"Cannot restart '{station}': URL not found")
+                    self._intended_station = None
+                    continue
+                # Don't announce auto-recovery via TTS; it would spam on every hiccup.
+                self._start_process(station, stream_url)
 
     def next_station(self):
         """Switch to the next station."""
@@ -169,8 +220,9 @@ class RadioPlayer:
             self.start_stream(self.stations[0])
 
     def is_playing(self) -> bool:
-        """Check if a stream is currently playing."""
-        return self.current_process is not None
+        """Check if a stream is currently playing (process exists and is still alive)."""
+        with self._lock:
+            return self.current_process is not None and self.current_process.poll() is None
 
     def get_current_station(self) -> Optional[str]:
         """Get the name of the currently playing station."""
