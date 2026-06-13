@@ -3,5 +3,6 @@
   "bookmark_B": null,
   "admin_mode_enabled": true,
   "admin_command_cooldown": 3.0,
-  "last_station": null
+  "last_station": null,
+  "should_play": true
 }

@@ -122,6 +122,8 @@ class RadioPlayer:
         # precedes an update/restart doesn't wipe out what we should resume.
         if self.config_manager is not None:
             self.config_manager.set_last_station(station_name)
+            # The radio is now on; auto-resume on the next startup.
+            self.config_manager.set_should_play(True)
 
     def _start_process(self, station_name: str, stream_url: str):
         """Launch the ffplay process. Caller must hold self._lock."""
@@ -163,11 +165,22 @@ class RadioPlayer:
             finally:
                 self.current_process = None
 
-    def stop_stream(self):
-        """Stop the current stream if playing."""
+    def stop_stream(self, user_initiated: bool = True):
+        """Stop the current stream if playing.
+
+        Args:
+            user_initiated: True when the user turned the radio off (Start button,
+                /stop, /toggle), which persists "off" so it stays off after the next
+                update/restart. System stops (update/restart/reboot/network info)
+                pass False so the radio resumes once it comes back up.
+        """
         with self._lock:
             self._intended_station = None
             self._stop_process()
+        # Persist the user's intent to stay off. Done outside the lock since config
+        # writes touch the disk and don't need the process lock.
+        if user_initiated and self.config_manager is not None:
+            self.config_manager.set_should_play(False)
 
     def _start_watchdog(self):
         """Start a background thread that revives the stream if ffplay dies."""
@@ -382,7 +395,7 @@ class SystemManager:
 
         # Stop radio for clear TTS
         logger.info("Stopping radio for network info")
-        self.player.stop_stream()
+        self.player.stop_stream(user_initiated=False)
 
         # Get and speak network info
         ip = self.get_ip_address()
@@ -406,7 +419,7 @@ class SystemManager:
         """Run the update script."""
         # Stop radio first
         logger.info("Stopping radio for update")
-        self.player.stop_stream()
+        self.player.stop_stream(user_initiated=False)
 
         if not os.path.exists(self.update_script):
             message = "Update script not found"
@@ -437,7 +450,7 @@ class SystemManager:
         """Restart the pi-radio application service."""
         # Stop radio first
         logger.info("Stopping radio for app restart")
-        self.player.stop_stream()
+        self.player.stop_stream(user_initiated=False)
 
         try:
             self.speak("Restarting application")
@@ -473,7 +486,7 @@ class SystemManager:
         """Reboot the entire system."""
         # Stop radio first
         logger.info("Stopping radio for system reboot")
-        self.player.stop_stream()
+        self.player.stop_stream(user_initiated=False)
 
         try:
             self.speak("Rebooting system")
@@ -512,7 +525,11 @@ class ConfigManager:
             'bookmark_B': None,
             'admin_mode_enabled': True,
             'admin_command_cooldown': 3.0,
-            'last_station': None
+            'last_station': None,
+            # Whether the radio should be playing. Reflects the user's intent so we
+            # only auto-resume on startup if it was on; a user stop turns this off,
+            # while a system stop (update/restart/reboot) leaves it untouched.
+            'should_play': True
         }
 
         if os.path.exists(self.config_file):
@@ -586,6 +603,31 @@ class ConfigManager:
             Station name or None
         """
         return self.config.get('last_station')
+
+    def set_should_play(self, should_play: bool):
+        """
+        Persist whether the radio should be playing, so startup can decide whether
+        to auto-resume. Only the user's explicit stop sets this False; system stops
+        (update/restart/reboot) leave it as-is so the radio comes back on afterwards.
+
+        Args:
+            should_play: True if the radio is meant to be on, False if turned off
+        """
+        # Avoid an unnecessary disk write if nothing changed.
+        if self.config.get('should_play') == should_play:
+            return
+        self.config['should_play'] = should_play
+        self._save_config()
+        logger.info(f"should_play set to {should_play}")
+
+    def get_should_play(self) -> bool:
+        """
+        Get whether the radio was on when it last stopped.
+
+        Returns:
+            True if the radio should auto-resume on startup, False otherwise
+        """
+        return self.config.get('should_play', True)
 
     def get_admin_mode_enabled(self) -> bool:
         """
@@ -940,7 +982,9 @@ def setup_signal_handlers(player: RadioPlayer):
     """
     def signal_handler(signum, frame):
         logger.info("Shutdown signal received, cleaning up...")
-        player.stop_stream()
+        # SIGTERM/SIGINT come from systemctl restart, reboot or shutdown, not from
+        # the user turning the radio off, so don't clear the auto-resume intent.
+        player.stop_stream(user_initiated=False)
         exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -998,13 +1042,25 @@ def main():
             initial_station = bookmark
             logger.info(f"Starting bookmarked station: {bookmark}")
 
-    if initial_station is not None:
-        player.play_station_by_name(initial_station)
-    elif player.stations:
-        player.start_stream(player.stations[0])
-    else:
+    if initial_station is None and player.stations:
+        initial_station = player.stations[0]
+
+    if initial_station is None:
         logger.error("No stations available to play!")
         return
+
+    # Point the player at the resolved station so a later Start/toggle resumes the
+    # right one, even when we don't auto-play now.
+    if initial_station in player.stations:
+        player.current_station_index = player.stations.index(initial_station)
+
+    # Only auto-resume if the radio was on when it last stopped. A user-initiated
+    # stop persists "off", so after an update or reboot it stays silent until the
+    # user turns it back on instead of springing to life on its own.
+    if config_manager.get_should_play():
+        player.play_station_by_name(initial_station)
+    else:
+        logger.info(f"Radio was off at last stop; staying stopped (station ready: {initial_station})")
 
     # Main event loop
     logger.info("Pi Radio ready, listening for gamepad input...")
@@ -1018,7 +1074,9 @@ def main():
     except Exception as e:
         logger.error(f"Fatal error in main loop: {e}")
     finally:
-        player.stop_stream()
+        # Process is exiting (shutdown or crash); the service will be restarted, so
+        # treat this as a system stop and keep the auto-resume intent intact.
+        player.stop_stream(user_initiated=False)
         logger.info("Pi Radio stopped")
 
 
