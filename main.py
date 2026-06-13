@@ -52,6 +52,10 @@ class RadioPlayer:
         # Station we are meant to be playing; None when intentionally stopped.
         # The watchdog uses this to know whether an exited process should be revived.
         self._intended_station: Optional[str] = None
+        # Serializes TTS: pyttsx3 is not thread-safe, and concurrent runAndWait()
+        # calls (gamepad vs HTTP API thread) make one return early with the
+        # announcement still playing, so it overlaps the stream that starts next.
+        self._tts_lock = threading.Lock()
         self._init_tts()
         self._start_watchdog()
 
@@ -75,11 +79,14 @@ class RadioPlayer:
             logger.warning(f"TTS not available, would have said: {text}")
             return
 
-        try:
-            self.tts_engine.say(text)
-            self.tts_engine.runAndWait()
-        except Exception as e:
-            logger.error(f"TTS error: {e}")
+        # Hold the lock for the whole utterance so it fully finishes before we
+        # return; this guarantees the announcement is done before the stream starts.
+        with self._tts_lock:
+            try:
+                self.tts_engine.say(text)
+                self.tts_engine.runAndWait()
+            except Exception as e:
+                logger.error(f"TTS error: {e}")
 
     def start_stream(self, station_name: str):
         """
