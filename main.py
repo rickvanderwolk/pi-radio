@@ -31,14 +31,17 @@ logger = logging.getLogger(__name__)
 class RadioPlayer:
     """Manages radio streaming and playback."""
 
-    def __init__(self, station_manager: StationManager):
+    def __init__(self, station_manager: StationManager, config_manager: Optional['ConfigManager'] = None):
         """
         Initialize the RadioPlayer.
 
         Args:
             station_manager: StationManager instance for accessing stations
+            config_manager: ConfigManager used to persist the last played station
+                so it can be resumed after a restart/update
         """
         self.station_manager = station_manager
+        self.config_manager = config_manager
         self.stations = station_manager.get_station_names()
         self.current_station_index = 0
         self.current_process: Optional[subprocess.Popen] = None
@@ -106,6 +109,12 @@ class RadioPlayer:
             self._stop_process()
             self.speak(f"Starting stream of {station_name}")
             self._start_process(station_name, stream_url)
+
+        # Remember what we're playing so it can be resumed after a restart/update.
+        # Only persisted on start (never cleared on stop), so the stop that
+        # precedes an update/restart doesn't wipe out what we should resume.
+        if self.config_manager is not None:
+            self.config_manager.set_last_station(station_name)
 
     def _start_process(self, station_name: str, stream_url: str):
         """Launch the ffplay process. Caller must hold self._lock."""
@@ -495,7 +504,8 @@ class ConfigManager:
             'bookmark_A': None,
             'bookmark_B': None,
             'admin_mode_enabled': True,
-            'admin_command_cooldown': 3.0
+            'admin_command_cooldown': 3.0,
+            'last_station': None
         }
 
         if os.path.exists(self.config_file):
@@ -546,6 +556,29 @@ class ConfigManager:
             Station name or None
         """
         return self.config.get(bookmark_name)
+
+    def set_last_station(self, station_name: str):
+        """
+        Remember the last station that was played so it can be resumed on startup.
+
+        Args:
+            station_name: Station that is now playing
+        """
+        # Avoid an unnecessary disk write if nothing changed.
+        if self.config.get('last_station') == station_name:
+            return
+        self.config['last_station'] = station_name
+        self._save_config()
+        logger.info(f"Last station set to {station_name}")
+
+    def get_last_station(self) -> Optional[str]:
+        """
+        Get the last played station.
+
+        Returns:
+            Station name or None
+        """
+        return self.config.get('last_station')
 
     def get_admin_mode_enabled(self) -> bool:
         """
@@ -925,9 +958,9 @@ def main():
     # Initialize components
     try:
         station_manager = StationManager(base_dir)
-        player = RadioPlayer(station_manager)
-        volume = VolumeController()
         config_manager = ConfigManager(os.path.join(base_dir, const.CONFIG_FILE))
+        player = RadioPlayer(station_manager, config_manager)
+        volume = VolumeController()
         system_manager = SystemManager(base_dir, player.speak, player)
         controller = GamepadController(player, volume, config_manager, system_manager)
     except Exception as e:
@@ -941,16 +974,30 @@ def main():
     # Setup signal handlers
     setup_signal_handlers(player)
 
-    # Start with bookmarked station or first station
-    initial_station = config_manager.get_bookmark('bookmark_A')
-    if initial_station and station_manager.is_valid_station(initial_station):
+    # Resume whatever was playing before the last restart/update, falling back to
+    # the bookmarked station and finally the first available station.
+    initial_station = None
+
+    last_station = config_manager.get_last_station()
+    if last_station and station_manager.is_valid_station(last_station):
+        initial_station = last_station
+        logger.info(f"Resuming last played station: {last_station}")
+    elif last_station:
+        logger.warning(f"Last played station '{last_station}' no longer available")
+
+    if initial_station is None:
+        bookmark = config_manager.get_bookmark('bookmark_A')
+        if bookmark and station_manager.is_valid_station(bookmark):
+            initial_station = bookmark
+            logger.info(f"Starting bookmarked station: {bookmark}")
+
+    if initial_station is not None:
         player.play_station_by_name(initial_station)
+    elif player.stations:
+        player.start_stream(player.stations[0])
     else:
-        if player.stations:
-            player.start_stream(player.stations[0])
-        else:
-            logger.error("No stations available to play!")
-            return
+        logger.error("No stations available to play!")
+        return
 
     # Main event loop
     logger.info("Pi Radio ready, listening for gamepad input...")

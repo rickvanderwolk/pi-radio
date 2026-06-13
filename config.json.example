@@ -2,5 +2,6 @@
   "bookmark_A": null,
   "bookmark_B": null,
   "admin_mode_enabled": true,
-  "admin_command_cooldown": 3.0
+  "admin_command_cooldown": 3.0,
+  "last_station": null
 }
