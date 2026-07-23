@@ -7,6 +7,7 @@ import signal
 import subprocess
 import json
 import logging
+import random
 import shutil
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -232,6 +233,24 @@ class RadioPlayer:
             return
 
         self.current_station_index = (self.current_station_index - 1) % len(self.stations)
+        self.start_stream(self.stations[self.current_station_index])
+
+    def surprise_station(self):
+        """Switch to a random station other than the one currently selected.
+
+        Gives a quick "different vibe" without paging through the whole list.
+        With only one station loaded it just (re)starts that one.
+        """
+        if not self.stations:
+            logger.error("No stations available")
+            return
+
+        current = self.current_station_index
+        candidates = [i for i in range(len(self.stations)) if i != current]
+        if not candidates:  # only one station loaded
+            candidates = list(range(len(self.stations)))
+
+        self.current_station_index = random.choice(candidates)
         self.start_stream(self.stations[self.current_station_index])
 
     def play_station_by_name(self, station_name: str):
@@ -753,7 +772,16 @@ class GamepadController:
         self.select_pressed_time = 0
 
     def _handle_button_start(self):
-        """Handle Start button press (play/pause)."""
+        """Handle Start button press.
+
+        Select + Start plays a random ("surprise") station for a different vibe;
+        Start on its own toggles play/pause of the current station.
+        """
+        if self.select_is_pressed:
+            logger.info("Surprise: switching to a random station")
+            self.player.surprise_station()
+            return
+
         if self.player.is_playing():
             self.player.stop_stream()
         else:
@@ -923,6 +951,9 @@ class HttpApi:
                 elif path == '/prev':
                     player.previous_station()
                     self._respond(200, {'status': 'playing', 'station': player.get_current_station()})
+                elif path == '/random':
+                    player.surprise_station()
+                    self._respond(200, {'status': 'playing', 'station': player.get_current_station()})
                 elif path == '/status':
                     self._respond(200, {
                         'playing': player.is_playing(),
@@ -930,7 +961,7 @@ class HttpApi:
                         'stations': player.stations,
                     })
                 else:
-                    self._respond(404, {'error': 'not found', 'endpoints': ['/toggle', '/play', '/play/<station>', '/stop', '/next', '/prev', '/volume/up', '/volume/down', '/volume/<0-100>', '/status']})
+                    self._respond(404, {'error': 'not found', 'endpoints': ['/toggle', '/play', '/play/<station>', '/stop', '/next', '/prev', '/random', '/volume/up', '/volume/down', '/volume/<0-100>', '/status']})
 
             def _respond(self, code, data):
                 self.send_response(code)

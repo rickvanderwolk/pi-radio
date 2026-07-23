@@ -73,6 +73,7 @@ Pi-Radio is controlled entirely via gamepad. Below are all available controls.
 | Button/Joystick | Action | Description |
 |-----------------|--------|-------------|
 | **Start** | Play/Pause | Toggle playback of the current station |
+| **Select + Start** | Surprise Station | Jump to a random station for a different vibe |
 | **Joystick Left** | Previous Station | Switch to the previous station in the list |
 | **Joystick Right** | Next Station | Switch to the next station in the list |
 | **Joystick Up** | Volume Up | Increase system volume |
@@ -157,6 +158,7 @@ All endpoints respond with JSON.
 | GET | `/stop` | Stop playback | `{"status": "stopped"}` |
 | GET | `/next` | Switch to the next station | `{"status": "playing", "station": "..."}` |
 | GET | `/prev` | Switch to the previous station | `{"status": "playing", "station": "..."}` |
+| GET | `/random` | Switch to a random station (surprise) | `{"status": "playing", "station": "..."}` |
 | GET | `/volume/up` | Increase volume by one step | `{"status": "ok", "volume": "up"}` |
 | GET | `/volume/down` | Decrease volume by one step | `{"status": "ok", "volume": "down"}` |
 | GET | `/volume/<0-100>` | Set volume to an absolute level (clamped to 0-100) | `{"status": "ok", "volume": 50}` |
