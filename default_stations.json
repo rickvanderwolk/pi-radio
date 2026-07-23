@@ -35,6 +35,14 @@
   "techo_dot_fm_radio_1": "https://stream.techno.fm/radio1-320k.mp3",
   "record_minimal": "https://radiorecord.hostingradio.ru/mini96.aacp",
   "record_darkside": "https://radiorecord.hostingradio.ru/darkside96.aacp",
+  "record_techno": "https://radiorecord.hostingradio.ru/techno96.aacp",
+
+  "record_trancemission": "https://radiorecord.hostingradio.ru/tm96.aacp",
+  "record_trance_classics": "https://radiorecord.hostingradio.ru/trancehits96.aacp",
+  "record_progressive": "https://radiorecord.hostingradio.ru/progr96.aacp",
+  "record_hardstyle": "https://radiorecord.hostingradio.ru/teo96.aacp",
+  "record_hard_bass": "https://radiorecord.hostingradio.ru/hbass96.aacp",
+  "record_goa_psy": "https://radiorecord.hostingradio.ru/goa96.aacp",
 
   "dnbradio": "https://azrelay.drmnbss.org/listen/dnbradio/radio.mp3",
   "bassdrive": "http://ice.bassdrive.net/stream",
